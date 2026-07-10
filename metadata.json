@@ -1,0 +1,6 @@
+{
+  "name": "KhataIndex",
+  "description": "A highly polished, Material 3 Offline Todo Planner featuring dynamic card customization themes, local reminders, secure local SQLite Room persistence, privacy policy, and creator details.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
