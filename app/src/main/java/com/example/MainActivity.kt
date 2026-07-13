@@ -11,6 +11,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
@@ -21,6 +22,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -65,6 +68,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.NavigationBar
@@ -132,8 +136,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MyApplicationTheme {
-                TodoAppScreen()
+            val viewModel: TodoViewModel = viewModel()
+            val isDark by viewModel.isDarkTheme.collectAsState()
+            MyApplicationTheme(darkTheme = isDark) {
+                CompositionLocalProvider(LocalIsDark provides isDark) {
+                    TodoAppScreen(viewModel = viewModel)
+                }
             }
         }
     }
@@ -217,13 +225,14 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
     val pendingCount = totalCount - completedCount
     val completionPercent = if (totalCount > 0) (completedCount * 100) / totalCount else 0
 
+    val isDark = LocalIsDark.current
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
-            containerColor = Color(0xFFFEF7FF), // Material 3 clean dynamic light surface
+            containerColor = if (isDark) Color(0xFF141218) else Color(0xFFFEF7FF), // Material 3 clean dynamic light surface
             bottomBar = {
                 NavigationBar(
-                    containerColor = Color(0xFFF7F2FA),
+                    containerColor = if (isDark) Color(0xFF1D1B22) else Color(0xFFF7F2FA),
                     tonalElevation = 8.dp
                 ) {
                     NavigationBarItem(
@@ -234,13 +243,13 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                             Icon(
                                 imageVector = Icons.Default.CheckCircle,
                                 contentDescription = "Tasks",
-                                tint = if (currentTab == 0) Color(selectedTheme.primaryColor) else Color.Gray
+                                tint = if (currentTab == 0) selectedTheme.primary() else (if (isDark) Color(0xFFCAC4D0) else Color.Gray)
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Color(selectedTheme.primaryColor),
-                            selectedTextColor = Color(selectedTheme.primaryColor),
-                            indicatorColor = Color(selectedTheme.primaryColor).copy(alpha = 0.15f)
+                            selectedIconColor = selectedTheme.primary(),
+                            selectedTextColor = selectedTheme.primary(),
+                            indicatorColor = selectedTheme.primary().copy(alpha = 0.15f)
                         )
                     )
                     NavigationBarItem(
@@ -251,13 +260,30 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                             Icon(
                                 imageVector = Icons.Default.Book,
                                 contentDescription = "Khata Ledger",
-                                tint = if (currentTab == 1) Color(selectedTheme.primaryColor) else Color.Gray
+                                tint = if (currentTab == 1) selectedTheme.primary() else (if (isDark) Color(0xFFCAC4D0) else Color.Gray)
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = Color(selectedTheme.primaryColor),
-                            selectedTextColor = Color(selectedTheme.primaryColor),
-                            indicatorColor = Color(selectedTheme.primaryColor).copy(alpha = 0.15f)
+                            selectedIconColor = selectedTheme.primary(),
+                            selectedTextColor = selectedTheme.primary(),
+                            indicatorColor = selectedTheme.primary().copy(alpha = 0.15f)
+                        )
+                    )
+                    NavigationBarItem(
+                        selected = currentTab == 2,
+                        onClick = { currentTab = 2 },
+                        label = { Text("Cost Calc", fontWeight = FontWeight.Bold, fontSize = 11.sp) },
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Default.Calculate,
+                                contentDescription = "Cost Calculator",
+                                tint = if (currentTab == 2) selectedTheme.primary() else (if (isDark) Color(0xFFCAC4D0) else Color.Gray)
+                            )
+                        },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = selectedTheme.primary(),
+                            selectedTextColor = selectedTheme.primary(),
+                            indicatorColor = selectedTheme.primary().copy(alpha = 0.15f)
                         )
                     )
                 }
@@ -266,7 +292,7 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                 if (currentTab == 0) {
                     FloatingActionButton(
                         onClick = { showAddTodoDialog = true },
-                        containerColor = Color(selectedTheme.primaryColor), // Styled by custom dynamic theme
+                        containerColor = selectedTheme.primary(), // Styled by custom dynamic theme
                         contentColor = Color.White,
                         shape = RoundedCornerShape(16.dp),
                         modifier = Modifier
@@ -296,19 +322,30 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
-                        Text(
-                            text = "Secure Planner",
-                            color = Color(0xFF1D1B20), // Primary black text
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.ExtraBold
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Image(
+                            painter = painterResource(id = R.drawable.img_app_icon),
+                            contentDescription = "Logo",
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .border(1.dp, selectedTheme.primary().copy(alpha = 0.3f), RoundedCornerShape(8.dp))
                         )
-                        Text(
-                            text = "100% Offline Task Vault",
-                            color = Color(selectedTheme.primaryColor), // Themed subtitle
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Secure Planner",
+                                color = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20), // Primary black text
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                            Text(
+                                text = "100% Offline Task Vault",
+                                color = selectedTheme.primary(), // Themed subtitle
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
 
                     IconButton(
@@ -316,13 +353,13 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
-                            .background(Color(selectedTheme.primaryColor).copy(alpha = 0.15f))
+                            .background(selectedTheme.primary().copy(alpha = 0.15f))
                             .testTag("app_settings_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Settings,
                             contentDescription = "App Settings",
-                            tint = Color(selectedTheme.primaryColor),
+                            tint = selectedTheme.primary(),
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -416,12 +453,12 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp)
                         .testTag("search_todo_input"),
-                    placeholder = { Text("Search tasks...", color = Color(0xFF49454F)) },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF49454F)) },
+                    placeholder = { Text("Search tasks...", color = if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F)) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F)) },
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
                             IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                                Icon(Icons.Default.Close, contentDescription = "Clear search", tint = Color(0xFF49454F))
+                                Icon(Icons.Default.Close, contentDescription = "Clear search", tint = if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F))
                             }
                         }
                     },
@@ -429,12 +466,12 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                     keyboardActions = KeyboardActions(onSearch = { focusManager.clearFocus() }),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Color(selectedTheme.primaryColor),
-                        unfocusedBorderColor = Color(0xFF79747E),
-                        focusedContainerColor = Color(0xFFF3EDF7),
-                        unfocusedContainerColor = Color(0xFFF3EDF7),
-                        focusedTextColor = Color(0xFF1D1B20),
-                        unfocusedTextColor = Color(0xFF1D1B20)
+                        focusedBorderColor = selectedTheme.primary(),
+                        unfocusedBorderColor = if (isDark) Color(0xFF49454F) else Color(0xFF79747E),
+                        focusedContainerColor = if (isDark) Color(0xFF2E2A36) else Color(0xFFF3EDF7),
+                        unfocusedContainerColor = if (isDark) Color(0xFF2E2A36) else Color(0xFFF3EDF7),
+                        focusedTextColor = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20),
+                        unfocusedTextColor = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
                     ),
                     shape = RoundedCornerShape(12.dp)
                 )
@@ -453,9 +490,9 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 20.dp, vertical = 6.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(selectedTheme.primaryColor).copy(alpha = 0.05f)),
+                            colors = CardDefaults.cardColors(containerColor = selectedTheme.primary().copy(alpha = 0.08f)),
                             shape = RoundedCornerShape(16.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(selectedTheme.borderColor).copy(alpha = 0.3f))
+                            border = androidx.compose.foundation.BorderStroke(1.dp, selectedTheme.border().copy(alpha = 0.3f))
                         ) {
                             Column(modifier = Modifier.padding(14.dp)) {
                                 Row(
@@ -467,13 +504,13 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                                         text = "📊 Vault Statistics",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp,
-                                        color = Color(0xFF1D1B20)
+                                        color = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
                                     )
                                     Text(
                                         text = "$completedCount/$totalCount Completed",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(selectedTheme.primaryColor)
+                                        color = selectedTheme.primary()
                                     )
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
@@ -483,14 +520,14 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                                         .fillMaxWidth()
                                         .height(6.dp)
                                         .clip(CircleShape)
-                                        .background(Color.LightGray.copy(alpha = 0.3f))
+                                        .background(if (isDark) Color(0xFF3C3843) else Color.LightGray.copy(alpha = 0.3f))
                                 ) {
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth(if (totalCount > 0) completedCount.toFloat() / totalCount else 0f)
                                             .height(6.dp)
                                             .clip(CircleShape)
-                                            .background(Color(selectedTheme.primaryColor))
+                                            .background(selectedTheme.primary())
                                     )
                                 }
                                 Spacer(modifier = Modifier.height(10.dp))
@@ -499,16 +536,16 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("Pending", fontSize = 10.sp, color = Color.Gray)
-                                        Text("$pendingCount", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1D1B20))
+                                        Text("Pending", fontSize = 10.sp, color = if (isDark) Color(0xFFCAC4D0) else Color.Gray)
+                                        Text("$pendingCount", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20))
                                     }
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("Success Rate", fontSize = 10.sp, color = Color.Gray)
-                                        Text("$completionPercent%", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(selectedTheme.primaryColor))
+                                        Text("Success Rate", fontSize = 10.sp, color = if (isDark) Color(0xFFCAC4D0) else Color.Gray)
+                                        Text("$completionPercent%", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = selectedTheme.primary())
                                     }
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("Total Tasks", fontSize = 10.sp, color = Color.Gray)
-                                        Text("$totalCount", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1D1B20))
+                                        Text("Total Tasks", fontSize = 10.sp, color = if (isDark) Color(0xFFCAC4D0) else Color.Gray)
+                                        Text("$totalCount", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20))
                                     }
                                 }
                             }
@@ -527,14 +564,14 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                             ) {
                                 Text(
                                     text = "Filter Category",
-                                    color = Color(0xFF1D1B20),
+                                    color = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20),
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 if (selectedCategoryFilter != "All" || selectedPriorityFilter != null) {
                                     Text(
                                         text = "Reset Filters",
-                                        color = Color(selectedTheme.primaryColor),
+                                        color = selectedTheme.primary(),
                                         fontSize = 11.sp,
                                         modifier = Modifier.clickable {
                                             viewModel.setCategoryFilter("All")
@@ -554,9 +591,9 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                             ) {
                                 categories.forEach { category ->
                                     val isSelected = selectedCategoryFilter == category
-                                    val chipBg = if (isSelected) Color(selectedTheme.primaryColor).copy(alpha = 0.15f) else Color.Transparent
-                                    val chipText = if (isSelected) Color(selectedTheme.primaryColor) else Color(0xFF49454F)
-                                    val chipBorderColor = if (isSelected) Color(selectedTheme.primaryColor) else Color(0xFF79747E)
+                                    val chipBg = if (isSelected) selectedTheme.primary().copy(alpha = 0.15f) else Color.Transparent
+                                    val chipText = if (isSelected) selectedTheme.primary() else (if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F))
+                                    val chipBorderColor = if (isSelected) selectedTheme.primary() else (if (isDark) Color(0xFF49454F) else Color(0xFF79747E))
 
                                     Box(
                                         modifier = Modifier
@@ -586,7 +623,7 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                             ) {
                                 Text(
                                     text = "Priority: ",
-                                    color = Color(0xFF49454F),
+                                    color = if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F),
                                     fontSize = 12.sp,
                                     modifier = Modifier.padding(end = 8.dp)
                                 )
@@ -597,9 +634,9 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                                     Pair(2, "High")
                                 ).forEach { (priorityVal, label) ->
                                     val isSelected = selectedPriorityFilter == priorityVal
-                                    val chipBg = if (isSelected) Color(selectedTheme.primaryColor).copy(alpha = 0.15f) else Color.Transparent
-                                    val chipText = if (isSelected) Color(selectedTheme.primaryColor) else Color(0xFF49454F)
-                                    val chipBorderColor = if (isSelected) Color(selectedTheme.primaryColor) else Color(0xFF79747E)
+                                    val chipBg = if (isSelected) selectedTheme.primary().copy(alpha = 0.15f) else Color.Transparent
+                                    val chipText = if (isSelected) selectedTheme.primary() else (if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F))
+                                    val chipBorderColor = if (isSelected) selectedTheme.primary() else (if (isDark) Color(0xFF49454F) else Color(0xFF79747E))
 
                                     Box(
                                         modifier = Modifier
@@ -633,13 +670,13 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                                     Icon(
                                         imageVector = Icons.Default.FilterList,
                                         contentDescription = null,
-                                        tint = Color(selectedTheme.primaryColor),
+                                        tint = selectedTheme.primary(),
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Text(
                                         text = "Sort: ",
-                                        color = Color(0xFF49454F),
+                                        color = if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F),
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -649,14 +686,14 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                                         Row(
                                             modifier = Modifier
                                                 .clip(RoundedCornerShape(6.dp))
-                                                .background(Color(selectedTheme.primaryColor).copy(alpha = 0.1f))
+                                                .background(selectedTheme.primary().copy(alpha = 0.15f))
                                                 .clickable { isSortMenuExpanded = true }
                                                 .padding(horizontal = 10.dp, vertical = 5.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
                                                 text = "${selectedSortOption.displayName}  ▼",
-                                                color = Color(selectedTheme.primaryColor),
+                                                color = selectedTheme.primary(),
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold
                                             )
@@ -665,14 +702,14 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                                         DropdownMenu(
                                             expanded = isSortMenuExpanded,
                                             onDismissRequest = { isSortMenuExpanded = false },
-                                            modifier = Modifier.background(Color(0xFFFEF7FF))
+                                            modifier = Modifier.background(if (isDark) Color(0xFF25232A) else Color(0xFFFEF7FF))
                                         ) {
                                             TaskSortOption.values().forEach { option ->
                                                 DropdownMenuItem(
                                                     text = {
                                                         Text(
                                                             text = option.displayName,
-                                                            color = Color(0xFF1D1B20),
+                                                            color = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20),
                                                             fontSize = 13.sp,
                                                             fontWeight = if (selectedSortOption == option) FontWeight.Bold else FontWeight.Normal
                                                         )
@@ -691,7 +728,7 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                                 Row(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(6.dp))
-                                        .background(Color(0xFFF3EDF7))
+                                        .background(if (isDark) Color(0xFF2D2930) else Color(0xFFF3EDF7))
                                         .clickable {
                                             if (todos.isEmpty()) {
                                                 Toast.makeText(context, "No tasks to share!", Toast.LENGTH_SHORT).show()
@@ -702,7 +739,7 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                                                         2 -> "High"
                                                         1 -> "Medium"
                                                         else -> "Low"
-                                                    }
+                                                     }
                                                     "$status ${item.title} (${item.category} - Priority: $priorityText)"
                                                 }
                                                 clipboardManager.setText(AnnotatedString("📋 My Task List:\n$formatted"))
@@ -715,13 +752,13 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                                     Icon(
                                         imageVector = Icons.Default.Check,
                                         contentDescription = null,
-                                        tint = Color(0xFF49454F),
+                                        tint = if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F),
                                         modifier = Modifier.size(13.dp)
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Text(
                                         text = "Export List",
-                                        color = Color(0xFF49454F),
+                                        color = if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F),
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -748,27 +785,27 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                                     modifier = Modifier
                                         .size(80.dp)
                                         .clip(CircleShape)
-                                        .background(Color(selectedTheme.primaryColor).copy(alpha = 0.12f)),
+                                        .background(selectedTheme.primary().copy(alpha = 0.15f)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.FilterList,
                                         contentDescription = null,
-                                        tint = Color(selectedTheme.primaryColor),
+                                        tint = selectedTheme.primary(),
                                         modifier = Modifier.size(36.dp)
                                     )
                                 }
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
                                     text = "No tasks found!",
-                                    color = Color(0xFF1D1B20),
+                                    color = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20),
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(
                                     text = "Create a task or reset active search filters.",
-                                    color = Color(0xFF49454F),
+                                    color = if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F),
                                     fontSize = 13.sp,
                                     modifier = Modifier.padding(horizontal = 16.dp),
                                     textAlign = TextAlign.Center
@@ -814,8 +851,19 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                         Spacer(modifier = Modifier.height(100.dp))
                     }
                 }
-                } else {
+                } else if (currentTab == 1) {
                     KhataBookDashboard(viewModel = viewModel, theme = selectedTheme)
+                } else {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 20.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        GramPriceCalculator(theme = selectedTheme)
+                        Spacer(modifier = Modifier.height(100.dp))
+                    }
                 }
             }
         }
@@ -937,10 +985,10 @@ fun TodoCardItem(
         else -> "Low"
     }
 
-    val themePrimary = Color(theme.primaryColor)
-    val themeContainer = Color(theme.containerColor)
-    val themeText = Color(theme.textColor)
-    val themeBorder = Color(theme.borderColor)
+    val themePrimary = theme.primary()
+    val themeContainer = theme.container()
+    val themeText = theme.text()
+    val themeBorder = theme.border()
 
     val titleColor by animateColorAsState(
         targetValue = if (todo.isCompleted) themeText.copy(alpha = 0.5f) else themeText,
@@ -1374,13 +1422,21 @@ fun AppSettingsDialog(
 ) {
     val areRemindersEnabled by viewModel.areRemindersEnabled.collectAsState()
     val selectedTheme by viewModel.selectedTheme.collectAsState()
+    val isDark by viewModel.isDarkTheme.collectAsState()
     val scrollState = rememberScrollState()
+
+    val surfaceColor = if (isDark) Color(0xFF1D1B22) else Color(0xFFFEF7FF)
+    val textMain = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
+    val textSecondary = if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F)
+    val themeColor = selectedTheme.primary()
+    val cardBg = if (isDark) Color(0xFF25232A) else Color(0xFFF4F3F6)
+    val borderStrokeColor = (if (isDark) Color(0xFF49454F) else Color(0xFFCAC4D0)).copy(alpha = 0.5f)
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = Color(0xFFFEF7FF),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCAC4D0).copy(alpha = 0.5f)),
+            color = surfaceColor,
+            border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor),
             modifier = Modifier
                 .fillMaxWidth()
                 .wrapContentHeight()
@@ -1390,210 +1446,322 @@ fun AppSettingsDialog(
                     .padding(24.dp)
                     .verticalScroll(scrollState)
             ) {
-                // Title
+                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "App Settings",
-                        color = Color(0xFF1D1B20),
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Black
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(themeColor.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = null,
+                                tint = themeColor,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "App Settings",
+                            color = textMain,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close Dialog", tint = Color(0xFF49454F))
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close Dialog",
+                            tint = textSecondary
+                        )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
-                // 1. Material 3 Dynamic Color Palette Switcher
-                Text(
-                    text = "🎨 Color Theme",
-                    color = Color(selectedTheme.primaryColor),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = "Personalize your planners with customized palette styles.",
-                    color = Color(0xFF49454F),
-                    fontSize = 11.sp
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Interactive row of colored dots
-                @OptIn(ExperimentalLayoutApi::class)
-                FlowRow(
+                // Card 1: Appearance & Style
+                Card(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = cardBg),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor.copy(alpha = 0.3f))
                 ) {
-                    TaskCardTheme.values().forEach { theme ->
-                        val isSelected = selectedTheme == theme
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(Color(theme.containerColor))
-                                .border(
-                                    width = if (isSelected) 3.dp else 1.dp,
-                                    color = if (isSelected) Color(theme.primaryColor) else Color(0xFF79747E).copy(alpha = 0.5f),
-                                    shape = CircleShape
-                                )
-                                .clickable { viewModel.selectTheme(theme) },
-                            contentAlignment = Alignment.Center
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = null,
+                                tint = themeColor,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Appearance & Theme",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = themeColor
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        
+                        // Theme Switcher dots
+                        @OptIn(ExperimentalLayoutApi::class)
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(14.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(theme.primaryColor))
-                            ) {
-                                if (isSelected) {
-                                    Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = "Selected",
-                                        tint = Color.White,
+                            TaskCardTheme.values().forEach { theme ->
+                                val isSelected = selectedTheme == theme
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(theme.getColors(isDark).container))
+                                        .border(
+                                            width = if (isSelected) 3.dp else 1.dp,
+                                            color = if (isSelected) Color(theme.getColors(isDark).primary) else borderStrokeColor.copy(alpha = 0.5f),
+                                            shape = CircleShape
+                                        )
+                                        .clickable { viewModel.selectTheme(theme) },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Box(
                                         modifier = Modifier
-                                            .size(10.dp)
-                                            .align(Alignment.Center)
-                                    )
+                                            .size(14.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(theme.getColors(isDark).primary))
+                                    ) {
+                                        if (isSelected) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = "Selected",
+                                                tint = Color.White,
+                                                modifier = Modifier
+                                                    .size(10.dp)
+                                                    .align(Alignment.Center)
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
-                    }
-                }
 
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Active: ${selectedTheme.displayName}",
-                    color = Color(0xFF49454F),
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color(0xFFCAC4D0).copy(alpha = 0.5f)))
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // 2. Task Reminders section
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.NotificationsActive,
-                            contentDescription = null,
-                            tint = Color(selectedTheme.primaryColor),
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        
+                        // Theme Label
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(themeColor.copy(alpha = 0.1f))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
                             Text(
-                                text = "Reminders",
-                                color = Color(0xFF1D1B20),
-                                fontSize = 14.sp,
+                                text = "Active Theme: ${selectedTheme.displayName}",
+                                color = themeColor,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold
                             )
-                            Text(
-                                text = "Overdue task alerts",
-                                color = Color(0xFF49454F),
-                                fontSize = 11.sp
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(borderStrokeColor.copy(alpha = 0.3f)))
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Dark Theme Toggle row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Dark Theme",
+                                    color = textMain,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Force dark theme across the app",
+                                    color = textSecondary,
+                                    fontSize = 10.sp
+                                )
+                            }
+                            Switch(
+                                checked = isDark,
+                                onCheckedChange = { isChecked ->
+                                    viewModel.toggleDarkTheme(isChecked)
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = themeColor,
+                                    checkedTrackColor = themeColor.copy(alpha = 0.25f)
+                                )
                             )
                         }
                     }
-                    Switch(
-                        checked = areRemindersEnabled,
-                        onCheckedChange = { isChecked ->
-                            viewModel.toggleRemindersEnabled()
-                            if (isChecked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !permissionGranted) {
-                                onRequestNotificationPermission()
-                            }
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color(selectedTheme.primaryColor),
-                            checkedTrackColor = Color(selectedTheme.primaryColor).copy(alpha = 0.25f)
-                        )
-                    )
                 }
 
-                if (areRemindersEnabled) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(
-                        onClick = { viewModel.triggerTestReminder() },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(selectedTheme.primaryColor).copy(alpha = 0.1f),
-                            contentColor = Color(selectedTheme.primaryColor)
-                        ),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Test Notification", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Card 2: Alerts & Notifications
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = cardBg),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor.copy(alpha = 0.3f))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.NotificationsActive,
+                                contentDescription = null,
+                                tint = themeColor,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Reminders & Alerts",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = themeColor
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Task Reminders",
+                                    color = textMain,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = "Receive notifications for overdue planner tasks",
+                                    color = textSecondary,
+                                    fontSize = 10.sp
+                                )
+                            }
+                            Switch(
+                                checked = areRemindersEnabled,
+                                onCheckedChange = { isChecked ->
+                                    viewModel.toggleRemindersEnabled()
+                                    if (isChecked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !permissionGranted) {
+                                        onRequestNotificationPermission()
+                                    }
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = themeColor,
+                                    checkedTrackColor = themeColor.copy(alpha = 0.25f)
+                                )
+                            )
+                        }
+
+                        if (areRemindersEnabled) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = { viewModel.triggerTestReminder() },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = themeColor.copy(alpha = 0.15f),
+                                    contentColor = themeColor
+                                ),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Test Alert Notification", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color(0xFFCAC4D0).copy(alpha = 0.5f)))
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // 3. Info & Privacy Buttons (Minimalist style)
-                Text(
-                    text = "🔒 Offline & Private",
-                    color = Color(0xFF1D1B20),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "All planner records remain stored locally on your physical device.",
-                    color = Color(0xFF49454F),
-                    fontSize = 11.sp
-                )
                 Spacer(modifier = Modifier.height(12.dp))
-                
-                Button(
-                    onClick = onRequestPrivacy,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(selectedTheme.primaryColor).copy(alpha = 0.12f),
-                        contentColor = Color(selectedTheme.primaryColor)
-                    ),
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth()
+
+                // Card 3: Privacy & Security
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = cardBg),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor.copy(alpha = 0.3f))
                 ) {
-                    Text("Read Privacy Policy", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = themeColor,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Offline Privacy",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = themeColor
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "All planner records remain stored offline and fully private on your device.",
+                            color = textSecondary,
+                            fontSize = 10.sp,
+                            lineHeight = 14.sp
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Button(
+                            onClick = onRequestPrivacy,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = themeColor.copy(alpha = 0.15f),
+                                contentColor = themeColor
+                            ),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Read Privacy Policy", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color(0xFFCAC4D0).copy(alpha = 0.5f)))
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
                 // App Info Footer
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("Secure Planner Pro v1.2.0", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF1D1B20))
-                    Text("Designed by Subhajit Roy", fontSize = 10.sp, color = Color.Gray)
+                    Text(
+                        text = "Secure Planner Pro v1.2.0",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 11.sp,
+                        color = textMain
+                    )
+                    Text(
+                        text = "Designed by Subhajit Roy",
+                        fontSize = 9.sp,
+                        color = Color.Gray
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 Button(
                     onClick = onDismiss,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(selectedTheme.primaryColor)),
+                    colors = ButtonDefaults.buttonColors(containerColor = themeColor),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Done", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("Save & Close Settings", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                 }
             }
         }
@@ -1707,7 +1875,7 @@ fun PrivacyPolicyScreen(
 
                 PrivacySectionHeader(title = "7. Contact and Support")
                 PrivacySectionBody(
-                    text = "If you have any questions or require support regarding your offline planner application, you may contact our lead developer:\n\nDeveloper: Subhajit Roy\nEmail: subhajit.roy@example.com\nSupport: subhajit.roy@myntra.com"
+                    text = "If you have any questions or require support regarding your offline planner application, you may contact our lead developer:\n\nDeveloper: Subhajit Roy\nEmail: romendraroy4@gmail.com\nSupport: None"
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))

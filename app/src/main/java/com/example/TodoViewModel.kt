@@ -1,7 +1,11 @@
 package com.example
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.ui.graphics.Color
 import androidx.lifecycle.viewModelScope
 import com.example.data.TodoDatabase
 import com.example.data.TodoItem
@@ -37,6 +41,58 @@ enum class TaskCardTheme(
     GOLDEN("Golden Honey", 0xFFFF8F00, 0xFFFFF8E1, 0xFF3E2723, 0xFFFFE082)
 }
 
+data class ThemeColors(
+    val primary: Long,
+    val container: Long,
+    val text: Long,
+    val border: Long
+)
+
+fun TaskCardTheme.getColors(isDark: Boolean): ThemeColors {
+    return if (isDark) {
+        when (this) {
+            TaskCardTheme.VIOLET -> ThemeColors(primary = 0xFFD0BCFF, container = 0xFF211D2A, text = 0xFFE6E1E5, border = 0xFF49454F)
+            TaskCardTheme.EMERALD -> ThemeColors(primary = 0xFF6ADBA0, container = 0xFF0D251C, text = 0xFFE1F5EC, border = 0xFF1B4E38)
+            TaskCardTheme.OCEAN -> ThemeColors(primary = 0xFF81D4FA, container = 0xFF0B2535, text = 0xFFE1F5FE, border = 0xFF114F75)
+            TaskCardTheme.SUNSET -> ThemeColors(primary = 0xFFFFB077, container = 0xFF331B08, text = 0xFFFFEBE0, border = 0xFF6D3000)
+            TaskCardTheme.CHARCOAL -> ThemeColors(primary = 0xFF90A4AE, container = 0xFF1C1E24, text = 0xFFECEFF1, border = 0xFF37474F)
+            TaskCardTheme.ROSE -> ThemeColors(primary = 0xFFF48FB1, container = 0xFF330F1C, text = 0xFFFCE4EC, border = 0xFF641432)
+            TaskCardTheme.ROYAL -> ThemeColors(primary = 0xFF9FA8DA, container = 0xFF1F223A, text = 0xFFE8EAF6, border = 0xFF303F9F)
+            TaskCardTheme.TERRACOTTA -> ThemeColors(primary = 0xFFFFAB91, container = 0xFF3E160E, text = 0xFFFBE9E7, border = 0xFFBF360C)
+            TaskCardTheme.MINT -> ThemeColors(primary = 0xFF80CBC4, container = 0xFF0A2623, text = 0xFFE0F2F1, border = 0xFF004D40)
+            TaskCardTheme.GOLDEN -> ThemeColors(primary = 0xFFFFCC80, container = 0xFF2D221C, text = 0xFFFFF8E1, border = 0xFF5D4037)
+        }
+    } else {
+        ThemeColors(primary = this.primaryColor, container = this.containerColor, text = this.textColor, border = this.borderColor)
+    }
+}
+
+val LocalIsDark = compositionLocalOf { false }
+
+@Composable
+fun TaskCardTheme.primary(): Color {
+    val isDark = LocalIsDark.current
+    return Color(this.getColors(isDark).primary)
+}
+
+@Composable
+fun TaskCardTheme.container(): Color {
+    val isDark = LocalIsDark.current
+    return Color(this.getColors(isDark).container)
+}
+
+@Composable
+fun TaskCardTheme.text(): Color {
+    val isDark = LocalIsDark.current
+    return Color(this.getColors(isDark).text)
+}
+
+@Composable
+fun TaskCardTheme.border(): Color {
+    val isDark = LocalIsDark.current
+    return Color(this.getColors(isDark).border)
+}
+
 // Interactive sorting configurations
 enum class TaskSortOption(val displayName: String) {
     MANUAL("Manual (Drag & Drop)"),
@@ -68,6 +124,16 @@ class TodoViewModel(application: Application) : AndroidViewModel(application) {
     // Task Card Theme State
     private val _selectedTheme = MutableStateFlow(TaskCardTheme.VIOLET)
     val selectedTheme = _selectedTheme.asStateFlow()
+
+    // Persistent Dark Theme state
+    private val prefs = application.getSharedPreferences("khatabook_prefs", Context.MODE_PRIVATE)
+    private val _isDarkTheme = MutableStateFlow(prefs.getBoolean("is_dark_theme", false))
+    val isDarkTheme = _isDarkTheme.asStateFlow()
+
+    fun toggleDarkTheme(enabled: Boolean) {
+        _isDarkTheme.value = enabled
+        prefs.edit().putBoolean("is_dark_theme", enabled).apply()
+    }
 
     // Reminders states and configurations
     private val _areRemindersEnabled = MutableStateFlow(true)

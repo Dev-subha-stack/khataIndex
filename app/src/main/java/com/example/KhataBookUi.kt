@@ -17,6 +17,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.layout.FlowRow
@@ -60,8 +61,8 @@ fun KhataBookDashboard(
     val customers by viewModel.khataCustomers.collectAsState()
     val allTransactions by viewModel.allKhataTransactions.collectAsState()
 
-    val themeColor = Color(theme.primaryColor)
-    val containerBg = Color(theme.containerColor)
+    val themeColor = theme.primary()
+    val containerBg = theme.container()
 
     AnimatedContent(
         targetState = selectedContact,
@@ -120,12 +121,12 @@ fun KhataBookDashboard(
                                 text = "Khata Ledger Book",
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp,
-                                color = Color(0xFF1D1B20)
+                                color = if (LocalIsDark.current) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
                             )
                             Text(
                                 text = "Track business transactions, credits, and payments securely offline.",
                                 fontSize = 11.sp,
-                                color = Color(0xFF49454F)
+                                color = if (LocalIsDark.current) Color(0xFFCAC4D0) else Color(0xFF49454F)
                             )
                         }
                         IconButton(
@@ -173,7 +174,7 @@ fun KhataBookDashboard(
                             text = "🏢 Wholesalers",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
-                            color = if (selectedTab == 0) Color.White else Color(0xFF49454F)
+                            color = if (selectedTab == 0) Color.White else (if (LocalIsDark.current) Color(0xFFCAC4D0) else Color(0xFF49454F))
                         )
                     }
                     Box(
@@ -192,7 +193,7 @@ fun KhataBookDashboard(
                             text = "🛍️ Customers",
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp,
-                            color = if (selectedTab == 1) Color.White else Color(0xFF49454F)
+                            color = if (selectedTab == 1) Color.White else (if (LocalIsDark.current) Color(0xFFCAC4D0) else Color(0xFF49454F))
                         )
                     }
                 }
@@ -224,12 +225,12 @@ fun KhataBookDashboard(
                     },
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color(0xFF1D1B20),
-                        unfocusedTextColor = Color(0xFF1D1B20),
+                        focusedTextColor = if (LocalIsDark.current) Color(0xFFE6E1E5) else Color(0xFF1D1B20),
+                        unfocusedTextColor = if (LocalIsDark.current) Color(0xFFE6E1E5) else Color(0xFF1D1B20),
                         focusedBorderColor = themeColor,
-                        unfocusedBorderColor = Color(0xFFCAC4D0).copy(alpha = 0.8f),
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White
+                        unfocusedBorderColor = if (LocalIsDark.current) Color(0xFF49454F) else Color(0xFFCAC4D0).copy(alpha = 0.8f),
+                        focusedContainerColor = if (LocalIsDark.current) Color(0xFF1D1B22) else Color.White,
+                        unfocusedContainerColor = if (LocalIsDark.current) Color(0xFF1D1B22) else Color.White
                     ),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier
@@ -243,9 +244,9 @@ fun KhataBookDashboard(
                         .fillMaxWidth()
                         .padding(vertical = 6.dp)
                         .clickable { showAddContactDialog = true },
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = if (LocalIsDark.current) Color(0xFF211D2A) else Color.White),
                     shape = RoundedCornerShape(12.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.4f))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (LocalIsDark.current) Color(0xFF49454F) else Color.LightGray.copy(alpha = 0.4f))
                 ) {
                     Row(
                         modifier = Modifier
@@ -397,14 +398,14 @@ fun ContactLedgerCard(
     theme: TaskCardTheme,
     onClick: () -> Unit
 ) {
-    val themeColor = Color(theme.primaryColor)
+    val themeColor = theme.primary()
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = if (LocalIsDark.current) Color(0xFF211D2A) else Color.White),
         shape = RoundedCornerShape(14.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.35f))
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (LocalIsDark.current) Color(0xFF49454F) else Color.LightGray.copy(alpha = 0.35f))
     ) {
         Row(
             modifier = Modifier
@@ -432,7 +433,7 @@ fun ContactLedgerCard(
                     text = contact.name,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
-                    color = Color(0xFF1D1B20),
+                    color = if (LocalIsDark.current) Color(0xFFE6E1E5) else Color(0xFF1D1B20),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -481,13 +482,21 @@ fun AddContactDialog(
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
 
-    val themeColor = Color(theme.primaryColor)
+    val themeColor = theme.primary()
+
+    val isDark = LocalIsDark.current
+    val surfaceColor = if (isDark) Color(0xFF1D1B22) else Color.White
+    val textMain = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
+    val textSecondary = if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F)
+    val inputBg = if (isDark) Color(0xFF2E2A36) else Color.White
+    val borderStrokeColor = if (isDark) Color(0xFF49454F) else Color.LightGray.copy(alpha = 0.5f)
+    val borderFieldColor = if (isDark) Color(0xFF49454F) else Color(0xFF79747E)
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(16.dp),
-            color = Color.White,
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f)),
+            color = surfaceColor,
+            border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
@@ -497,7 +506,7 @@ fun AddContactDialog(
                     text = if (type == "SELLER") "Add New Wholesaler" else "Add New Customer",
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
-                    color = Color(0xFF1D1B20)
+                    color = textMain
                 )
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -508,14 +517,14 @@ fun AddContactDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color(0xFF1D1B20),
-                        unfocusedTextColor = Color(0xFF1D1B20),
+                        focusedTextColor = textMain,
+                        unfocusedTextColor = textMain,
                         focusedLabelColor = themeColor,
-                        unfocusedLabelColor = Color(0xFF49454F),
+                        unfocusedLabelColor = textSecondary,
                         focusedBorderColor = themeColor,
-                        unfocusedBorderColor = Color(0xFF79747E),
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White
+                        unfocusedBorderColor = borderFieldColor,
+                        focusedContainerColor = inputBg,
+                        unfocusedContainerColor = inputBg
                     )
                 )
 
@@ -529,14 +538,14 @@ fun AddContactDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color(0xFF1D1B20),
-                        unfocusedTextColor = Color(0xFF1D1B20),
+                        focusedTextColor = textMain,
+                        unfocusedTextColor = textMain,
                         focusedLabelColor = themeColor,
-                        unfocusedLabelColor = Color(0xFF49454F),
+                        unfocusedLabelColor = textSecondary,
                         focusedBorderColor = themeColor,
-                        unfocusedBorderColor = Color(0xFF79747E),
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White
+                        unfocusedBorderColor = borderFieldColor,
+                        focusedContainerColor = inputBg,
+                        unfocusedContainerColor = inputBg
                     )
                 )
 
@@ -572,8 +581,8 @@ fun ContactDetailsScreen(
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
-    val themeColor = Color(theme.primaryColor)
-    val containerBg = Color(theme.containerColor)
+    val themeColor = theme.primary()
+    val containerBg = theme.container()
 
     val transactions by viewModel.getTransactionsForContact(contact.id).collectAsState(initial = emptyList())
 
@@ -635,7 +644,7 @@ fun ContactDetailsScreen(
                     text = contact.name,
                     fontWeight = FontWeight.Bold,
                     fontSize = 18.sp,
-                    color = Color(0xFF1D1B20)
+                    color = if (LocalIsDark.current) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
                 )
                 Text(
                     text = if (contact.type == "SELLER") "Wholesaler Account" else "Customer Account",
@@ -736,7 +745,7 @@ fun ContactDetailsScreen(
                 text = "📜 Timeline of Purchases & Payments",
                 fontWeight = FontWeight.Bold,
                 fontSize = 14.sp,
-                color = Color(0xFF1D1B20)
+                color = if (LocalIsDark.current) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
             )
             Text(
                 text = "${filteredTransactions.size} shown",
@@ -965,7 +974,7 @@ fun TransactionItemRow(
     onDelete: () -> Unit,
     showTimelineLine: Boolean = true
 ) {
-    val themeColor = Color(theme.primaryColor)
+    val themeColor = theme.primary()
     val sdf = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault())
     val formattedDate = sdf.format(Date(transaction.timestamp))
 
@@ -1056,7 +1065,7 @@ fun TransactionItemRow(
                         },
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
-                        color = Color(0xFF1D1B20)
+                        color = if (LocalIsDark.current) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
                     )
                     Text(
                         text = formattedDate,
@@ -1099,7 +1108,7 @@ fun AddTransactionDialog(
     var amount by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
 
-    val themeColor = Color(theme.primaryColor)
+    val themeColor = theme.primary()
 
     val dialogTitle = when (txType) {
         "THEY_OWE" -> "Gave Goods on Credit (Udhaar)"
@@ -1109,21 +1118,29 @@ fun AddTransactionDialog(
         else -> "New Entry"
     }
 
+    val isDark = LocalIsDark.current
+    val surfaceColor = if (isDark) Color(0xFF1D1B22) else Color.White
+    val textMain = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
+    val textSecondary = if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F)
+    val inputBg = if (isDark) Color(0xFF2E2A36) else Color.White
+    val borderStrokeColor = if (isDark) Color(0xFF49454F) else Color.LightGray.copy(alpha = 0.5f)
+    val borderFieldColor = if (isDark) Color(0xFF49454F) else Color(0xFF79747E)
+
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(16.dp),
-            color = Color.White,
+            color = surfaceColor,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f))
+            border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor)
         ) {
             Column(modifier = Modifier.padding(18.dp)) {
                 Text(
                     text = dialogTitle,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
-                    color = Color(0xFF1D1B20)
+                    color = textMain
                 )
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -1135,14 +1152,14 @@ fun AddTransactionDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color(0xFF1D1B20),
-                        unfocusedTextColor = Color(0xFF1D1B20),
+                        focusedTextColor = textMain,
+                        unfocusedTextColor = textMain,
                         focusedLabelColor = themeColor,
-                        unfocusedLabelColor = Color(0xFF49454F),
+                        unfocusedLabelColor = textSecondary,
                         focusedBorderColor = themeColor,
-                        unfocusedBorderColor = Color(0xFF79747E),
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White
+                        unfocusedBorderColor = borderFieldColor,
+                        focusedContainerColor = inputBg,
+                        unfocusedContainerColor = inputBg
                     )
                 )
 
@@ -1156,14 +1173,14 @@ fun AddTransactionDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color(0xFF1D1B20),
-                        unfocusedTextColor = Color(0xFF1D1B20),
+                        focusedTextColor = textMain,
+                        unfocusedTextColor = textMain,
                         focusedLabelColor = themeColor,
-                        unfocusedLabelColor = Color(0xFF49454F),
+                        unfocusedLabelColor = textSecondary,
                         focusedBorderColor = themeColor,
-                        unfocusedBorderColor = Color(0xFF79747E),
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White
+                        unfocusedBorderColor = borderFieldColor,
+                        focusedContainerColor = inputBg,
+                        unfocusedContainerColor = inputBg
                     )
                 )
 
@@ -1262,61 +1279,138 @@ fun shareStatement(context: Context, contactName: String, statement: String) {
 enum class BillLanguage(val displayName: String, val flag: String) {
     ENGLISH("English", "🇬🇧"),
     HINDI("Hindi (हिंदी)", "🇮🇳"),
-    BENGALI("Bengali (বাংলা)", "🇮🇳"),
-    SPANISH("Spanish (Español)", "🇪🇸"),
-    FRENCH("French (Français)", "🇫🇷"),
-    ARABIC("Arabic (العربية)", "🇸🇦")
+    BENGALI("Bengali (বাংলা)", "🇮🇳")
 }
 
 fun getLocalizedBillTemplate(
     language: BillLanguage,
     customerName: String,
     amount: Double,
-    shopName: String
+    shopName: String,
+    isWholesaler: Boolean,
+    isCleared: Boolean = false
 ): String {
     val formattedAmount = String.format("%.2f", amount)
     return when (language) {
-        BillLanguage.ENGLISH -> """
-Hi $customerName,
-Your bill of ₹$formattedAmount has been generated at $shopName.
+        BillLanguage.ENGLISH -> {
+            if (isWholesaler) {
+                if (isCleared) {
+                    """
+                    Hi $customerName,
+                    This is to confirm that pending balance of ₹$formattedAmount in the account at $shopName have been cleared.
 
-Thank you!
-        """.trimIndent()
+                    Thank you for your support!
+                    """.trimIndent()
+                } else {
+                    """
+                    Hi $customerName,
+                    This is to confirm that my pending balance to you is ₹$formattedAmount for the account at $shopName.
+
+                    I will clear this amount soon.
+
+                    Thank you for your support!
+                    """.trimIndent()
+                }
+            } else {
+                if (isCleared) {
+                    """
+                    Hi $customerName,
+                    the pending balance of ₹$formattedAmount at $shopName.
+                    have been cleared.
+                    Thank you!
+                    """.trimIndent()
+                } else {
+                    """
+                    Hi $customerName,
+                    You have a pending balance of ₹$formattedAmount at $shopName.
+
+                    Please clear this due amount as soon as possible.
+
+                    Thank you!
+                    """.trimIndent()
+                }
+            }
+        }
         
-        BillLanguage.HINDI -> """
-नमस्ते $customerName,
-आपका ₹$formattedAmount का बिल $shopName पर जनरेट हो गया है।
+        BillLanguage.HINDI -> {
+            if (isWholesaler) {
+                if (isCleared) {
+                    """
+                    नमस्ते $customerName,
+                    यह पुष्टि करने के लिए है कि $shopName के खाते का ₹$formattedAmount का बकाया चुका दिया गया है।
 
-धन्यवाद!
-        """.trimIndent()
+                    आपके सहयोग के लिए धन्यवाद!
+                    """.trimIndent()
+                } else {
+                    """
+                    नमस्ते $customerName,
+                    यह पुष्टि करने के लिए है कि $shopName के खाते के लिए मेरा आपके प्रति बकाया ₹$formattedAmount है।
+
+                    मैं जल्द ही इस राशि का भुगतान कर दूँगा।
+
+                    आपके सहयोग के लिए धन्यवाद!
+                    """.trimIndent()
+                }
+            } else {
+                if (isCleared) {
+                    """
+                    नमस्ते $customerName,
+                    $shopName पर ₹$formattedAmount का आपका बकाया पूरा चुका दिया गया है।
+
+                    धन्यवाद!
+                    """.trimIndent()
+                } else {
+                    """
+                    नमस्ते $customerName,
+                    आपका $shopName पर ₹$formattedAmount का बकाया है।
+
+                    कृपया जल्द से जल्द इस बकाया राशि का भुगतान करें।
+
+                    धन्यवाद!
+                    """.trimIndent()
+                }
+            }
+        }
         
-        BillLanguage.BENGALI -> """
-নমস্কার $customerName,
-আপনার ₹$formattedAmount টাকার বিল $shopName-এ তৈরি হয়েছে।
+        BillLanguage.BENGALI -> {
+            if (isWholesaler) {
+                if (isCleared) {
+                    """
+                    নমস্কার $customerName,
+                    এটি নিশ্চিত করার জন্য যে $shopName-এর অ্যাকাউন্টের ₹$formattedAmount টাকার বকেয়া মিটিয়ে দেওয়া হয়েছে।
 
-ধন্যবাদ!
-        """.trimIndent()
-        
-        BillLanguage.SPANISH -> """
-Hola $customerName,
-Tu factura de ₹$formattedAmount ha sido generada en $shopName.
+                    আপনার সহযোগিতার জন্য ধন্যবাদ!
+                    """.trimIndent()
+                } else {
+                    """
+                    নমস্কার $customerName,
+                    এটি নিশ্চিত করার জন্য যে $shopName-এর অ্যাকাউন্টের জন্য আপনার কাছে আমার ₹$formattedAmount টাকা বকেয়া রয়েছে।
 
-¡Gracias!
-        """.trimIndent()
-        
-        BillLanguage.FRENCH -> """
-Bonjour $customerName,
-Votre facture de ₹$formattedAmount a été générée chez $shopName.
+                    আমি শীঘ্রই এই টাকাটি মিটিয়ে দেব।
 
-Merci !
-        """.trimIndent()
-        
-        BillLanguage.ARABIC -> """
-مرحباً $customerName،
-تم إصدار فاتورتك بقيمة ₹$formattedAmount في $shopName.
+                    আপনার সহযোগিতার জন্য ধন্যবাদ!
+                    """.trimIndent()
+                }
+            } else {
+                if (isCleared) {
+                    """
+                    নমস্কার $customerName,
+                    $shopName-এ আপনার ₹$formattedAmount টাকার বকেয়া সম্পূর্ণ মিটিয়ে দেওয়া হয়েছে।
 
-شكراً لك!
-        """.trimIndent()
+                    ধন্যবাদ!
+                    """.trimIndent()
+                } else {
+                    """
+                    নমস্কার $customerName,
+                    $shopName-এ আপনার ₹$formattedAmount টাকা বাকি আছে।
+
+                    দয়া করে এই বকেয়া টাকাটি যত তাড়াতাড়ি সম্ভব মিটিয়ে দিন।
+
+                    ধন্যবাদ!
+                    """.trimIndent()
+                }
+            }
+        }
     }
 }
 
@@ -1341,27 +1435,39 @@ fun SendBillDialog(
     var shopName by remember { mutableStateOf(savedShopName) }
     var customAmount by remember { mutableStateOf(String.format("%.2f", defaultAmount)) }
     var selectedLanguage by remember { mutableStateOf(savedLang) }
+    var isCleared by remember { mutableStateOf(defaultAmount <= 0.0) }
 
-    val themeColor = Color(theme.primaryColor)
+    val themeColor = theme.primary()
 
     val currentAmountDouble = customAmount.toDoubleOrNull() ?: 0.0
-    val finalMessage = remember(selectedLanguage, contact.name, currentAmountDouble, shopName) {
+    val finalMessage = remember(selectedLanguage, contact.name, currentAmountDouble, shopName, isCleared) {
         getLocalizedBillTemplate(
             language = selectedLanguage,
             customerName = contact.name,
             amount = currentAmountDouble,
-            shopName = shopName
+            shopName = shopName,
+            isWholesaler = contact.type == "SELLER",
+            isCleared = isCleared
         )
     }
+
+    val isDark = LocalIsDark.current
+    val surfaceColor = if (isDark) Color(0xFF1D1B22) else Color.White
+    val textMain = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
+    val textSecondary = if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F)
+    val inputBg = if (isDark) Color(0xFF2E2A36) else Color.White
+    val borderStrokeColor = if (isDark) Color(0xFF49454F) else Color.LightGray.copy(alpha = 0.5f)
+    val borderFieldColor = if (isDark) Color(0xFF49454F) else Color(0xFF79747E)
+    val previewBg = if (isDark) Color(0xFF2E2A36) else Color(0xFFF5F5F5)
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(16.dp),
-            color = Color.White,
+            color = surfaceColor,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f))
+            border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor)
         ) {
             Column(
                 modifier = Modifier
@@ -1372,7 +1478,7 @@ fun SendBillDialog(
                     text = "✉️ Send Multilingual Bill",
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp,
-                    color = Color(0xFF1D1B20)
+                    color = textMain
                 )
                 Spacer(modifier = Modifier.height(12.dp))
 
@@ -1381,7 +1487,7 @@ fun SendBillDialog(
                     text = "Select Message Language",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.Gray
+                    color = textSecondary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 FlowRow(
@@ -1396,7 +1502,7 @@ fun SendBillDialog(
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(
                                     if (isSelected) themeColor.copy(alpha = 0.15f)
-                                    else Color(0xFFF3EDF7)
+                                    else if (isDark) Color(0xFF2E2A36) else Color(0xFFF3EDF7)
                                 )
                                 .border(
                                     width = 1.dp,
@@ -1410,13 +1516,57 @@ fun SendBillDialog(
                                 text = "${lang.flag} ${lang.displayName}",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isSelected) themeColor else Color(0xFF49454F)
+                                color = if (isSelected) themeColor else textSecondary
                             )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Status Type Selection
+                Text(
+                    text = "Select Statement Type",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textSecondary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(false, true).forEach { cleared ->
+                        val label = if (cleared) "Paid / Cleared ✅" else "Pending Balance ⏳"
+                        val isSelected = isCleared == cleared
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (isSelected) themeColor.copy(alpha = 0.15f)
+                                    else if (isDark) Color(0xFF2E2A36) else Color(0xFFF3EDF7)
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isSelected) themeColor else Color.Transparent,
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .clickable { isCleared = cleared }
+                                .padding(vertical = 8.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) themeColor else textSecondary
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // Input field: Shop Name
                 OutlinedTextField(
@@ -1426,13 +1576,13 @@ fun SendBillDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color(0xFF1D1B20),
-                        unfocusedTextColor = Color(0xFF1D1B20),
+                        focusedTextColor = textMain,
+                        unfocusedTextColor = textMain,
                         focusedLabelColor = themeColor,
                         focusedBorderColor = themeColor,
-                        unfocusedBorderColor = Color(0xFF79747E),
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White
+                        unfocusedBorderColor = borderFieldColor,
+                        focusedContainerColor = inputBg,
+                        unfocusedContainerColor = inputBg
                     )
                 )
 
@@ -1447,13 +1597,13 @@ fun SendBillDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color(0xFF1D1B20),
-                        unfocusedTextColor = Color(0xFF1D1B20),
+                        focusedTextColor = textMain,
+                        unfocusedTextColor = textMain,
                         focusedLabelColor = themeColor,
                         focusedBorderColor = themeColor,
-                        unfocusedBorderColor = Color(0xFF79747E),
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White
+                        unfocusedBorderColor = borderFieldColor,
+                        focusedContainerColor = inputBg,
+                        unfocusedContainerColor = inputBg
                     )
                 )
 
@@ -1464,20 +1614,20 @@ fun SendBillDialog(
                     text = "Message Preview",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.Gray
+                    color = textSecondary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFFF5F5F5), RoundedCornerShape(8.dp))
-                        .border(1.dp, Color.LightGray.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                        .background(previewBg, RoundedCornerShape(8.dp))
+                        .border(1.dp, borderStrokeColor, RoundedCornerShape(8.dp))
                         .padding(12.dp)
                 ) {
                     Text(
                         text = finalMessage,
                         fontSize = 12.sp,
-                        color = Color(0xFF1D1B20),
+                        color = textMain,
                         lineHeight = 16.sp
                     )
                 }
@@ -1492,11 +1642,11 @@ fun SendBillDialog(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Cancel", color = Color.Gray)
+                        Text("Cancel", color = textSecondary)
                     }
                     Button(
                         onClick = { onCopy(finalMessage) },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = themeColor),
+                        colors = ButtonDefaults.buttonColors(containerColor = surfaceColor, contentColor = themeColor),
                         border = androidx.compose.foundation.BorderStroke(1.dp, themeColor),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.weight(1.2f)
@@ -1530,178 +1680,280 @@ fun KhataSettingsDialog(
     var defaultLangStr by remember { mutableStateOf(prefs.getString("default_lang", "ENGLISH") ?: "ENGLISH") }
     var showConfirmClear by remember { mutableStateOf(false) }
 
-    val themeColor = Color(theme.primaryColor)
+    val themeColor = theme.primary()
+
+    val isDark = LocalIsDark.current
+    val surfaceColor = if (isDark) Color(0xFF1D1B22) else Color.White
+    val textMain = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
+    val textSecondary = if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F)
+    val inputBg = if (isDark) Color(0xFF2E2A36) else Color(0xFFF9F9FA)
+    val cardBg = if (isDark) Color(0xFF25232A) else Color(0xFFF3F2F5)
+    val borderStrokeColor = if (isDark) Color(0xFF49454F) else Color.LightGray.copy(alpha = 0.5f)
+    val borderFieldColor = if (isDark) Color(0xFF49454F) else Color(0xFF79747E)
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = Color.White,
+            shape = RoundedCornerShape(24.dp),
+            color = surfaceColor,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f))
+                .padding(12.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor)
         ) {
             Column(
                 modifier = Modifier
-                    .padding(20.dp)
+                    .padding(24.dp)
                     .verticalScroll(rememberScrollState())
             ) {
+                // Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "⚙️ Ledger Settings",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        color = Color(0xFF1D1B20)
-                    )
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close")
-                    }
-                }
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Default Shop Name setting
-                Text(
-                    text = "Default Shop / App Name",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Gray
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                OutlinedTextField(
-                    value = defaultShopName,
-                    onValueChange = { 
-                        defaultShopName = it
-                        prefs.edit().putString("default_shop_name", it).apply()
-                    },
-                    placeholder = { Text("e.g. Roy's Store") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = Color(0xFF1D1B20),
-                        unfocusedTextColor = Color(0xFF1D1B20),
-                        focusedLabelColor = themeColor,
-                        focusedBorderColor = themeColor,
-                        unfocusedBorderColor = Color(0xFF79747E),
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Default Billing Language setting
-                Text(
-                    text = "Default Message Language",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Gray
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    BillLanguage.values().forEach { lang ->
-                        val isSelected = defaultLangStr == lang.name
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(
-                                    if (isSelected) themeColor.copy(alpha = 0.15f)
-                                    else Color(0xFFF3EDF7)
-                                )
-                                .border(
-                                    width = 1.dp,
-                                    color = if (isSelected) themeColor else Color.Transparent,
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                .clickable { 
-                                    defaultLangStr = lang.name
-                                    prefs.edit().putString("default_lang", lang.name).apply()
-                                }
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(themeColor.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = "${lang.flag} ${lang.displayName}",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isSelected) themeColor else Color(0xFF49454F)
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = null,
+                                tint = themeColor,
+                                modifier = Modifier.size(20.dp)
                             )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Ledger Settings",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 18.sp,
+                            color = textMain
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = textSecondary)
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Section 1: Shop Profile Info
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = cardBg),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor.copy(alpha = 0.5f))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Store,
+                                contentDescription = null,
+                                tint = themeColor,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Shop Identity",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = themeColor
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        OutlinedTextField(
+                            value = defaultShopName,
+                            onValueChange = { 
+                                defaultShopName = it
+                                prefs.edit().putString("default_shop_name", it).apply()
+                            },
+                            placeholder = { Text("e.g. Roy's Store", fontSize = 13.sp) },
+                            singleLine = true,
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = textMain,
+                                unfocusedTextColor = textMain,
+                                focusedLabelColor = themeColor,
+                                focusedBorderColor = themeColor,
+                                unfocusedBorderColor = borderFieldColor.copy(alpha = 0.5f),
+                                focusedContainerColor = inputBg,
+                                unfocusedContainerColor = inputBg
+                            )
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Section 2: Localization Preferences
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = cardBg),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor.copy(alpha = 0.5f))
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Language,
+                                contentDescription = null,
+                                tint = themeColor,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Default Messaging Language",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = themeColor
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            BillLanguage.values().forEach { lang ->
+                                val isSelected = defaultLangStr == lang.name
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(
+                                            if (isSelected) themeColor.copy(alpha = 0.2f)
+                                            else if (isDark) Color(0xFF2E2A36) else Color.White
+                                        )
+                                        .border(
+                                            width = 1.dp,
+                                            color = if (isSelected) themeColor else borderStrokeColor.copy(alpha = 0.3f),
+                                            shape = RoundedCornerShape(10.dp)
+                                        )
+                                        .clickable { 
+                                            defaultLangStr = lang.name
+                                            prefs.edit().putString("default_lang", lang.name).apply()
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = "${lang.flag} ${lang.displayName}",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) themeColor else textSecondary
+                                    )
+                                }
+                            }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
-                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(Color.LightGray.copy(alpha = 0.5f)))
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-                // Reset and Clear data
-                Text(
-                    text = "⚠️ Danger Zone",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFFD32F2F)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Deleting all Khata records is permanent and cannot be undone.",
-                    fontSize = 11.sp,
-                    color = Color.Gray
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (!showConfirmClear) {
-                    Button(
-                        onClick = { showConfirmClear = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFFEBEE), contentColor = Color(0xFFC62828)),
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF9A9A))
-                    ) {
-                        Text("Reset Ledger Book Data", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
-                } else {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFFFFEBEE), RoundedCornerShape(8.dp))
-                            .border(1.dp, Color(0xFFEF9A9A), RoundedCornerShape(8.dp))
-                            .padding(10.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
+                // Section 3: Danger Zone
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isDark) Color(0xFF2D1717) else Color(0xFFFFF5F5)
+                    ),
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (isDark) Color(0xFF5E2B2B) else Color(0xFFFFCCCC)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = Color(0xFFD32F2F),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Danger Zone",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFD32F2F)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Are you absolutely sure?",
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFC62828),
-                            fontSize = 11.sp
+                            text = "Clearing the ledger book clears all customers, wholesalers, and transactions forever.",
+                            fontSize = 10.sp,
+                            color = if (isDark) Color(0xFFCAC4D0) else Color(0xFF665555),
+                            lineHeight = 14.sp
                         )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        if (!showConfirmClear) {
                             Button(
-                                onClick = { showConfirmClear = false },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color.Black),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, Color.Gray),
-                                shape = RoundedCornerShape(6.dp),
-                                modifier = Modifier.weight(1f)
+                                onClick = { showConfirmClear = true },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFFD32F2F),
+                                    contentColor = Color.White
+                                ),
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(10.dp)
                             ) {
-                                Text("Cancel", fontSize = 10.sp)
+                                Text("Reset Ledger Book Data", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
-                            Button(
-                                onClick = {
-                                    viewModel.clearAllKhataData()
-                                    showConfirmClear = false
-                                    Toast.makeText(context, "Ledger Book cleared successfully!", Toast.LENGTH_SHORT).show()
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828), contentColor = Color.White),
-                                shape = RoundedCornerShape(6.dp),
-                                modifier = Modifier.weight(1f)
+                        } else {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(
+                                        if (isDark) Color(0xFF4C1D1D) else Color(0xFFFFEBEE),
+                                        RoundedCornerShape(10.dp)
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (isDark) Color(0xFF752424) else Color(0xFFEF9A9A),
+                                        RoundedCornerShape(10.dp)
+                                    )
+                                    .padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Text("Yes, Clear All", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                Text(
+                                    text = "Are you absolutely sure?",
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isDark) Color(0xFFFF8B8B) else Color(0xFFC62828),
+                                    fontSize = 11.sp
+                                )
+                                Spacer(modifier = Modifier.height(10.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(
+                                        onClick = { showConfirmClear = false },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = surfaceColor,
+                                            contentColor = textMain
+                                        ),
+                                        border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("Cancel", fontSize = 10.sp)
+                                    }
+                                    Button(
+                                        onClick = {
+                                            viewModel.clearAllKhataData()
+                                            showConfirmClear = false
+                                            Toast.makeText(context, "Ledger Book cleared successfully!", Toast.LENGTH_SHORT).show()
+                                        },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = Color(0xFFC62828),
+                                            contentColor = Color.White
+                                        ),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.weight(1.2f)
+                                    ) {
+                                        Text("Yes, Clear All", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
                             }
                         }
                     }
@@ -1711,10 +1963,425 @@ fun KhataSettingsDialog(
                 Button(
                     onClick = onDismiss,
                     colors = ButtonDefaults.buttonColors(containerColor = themeColor),
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Save & Close", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("Save & Close Settings", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun GramPriceCalculator(theme: TaskCardTheme) {
+    var baseWeight by remember { mutableStateOf("100") }
+    var baseWeightUnit by remember { mutableStateOf("g") } // "g" or "kg"
+    var basePrice by remember { mutableStateOf("50") }
+    var targetWeight by remember { mutableStateOf("20") }
+    var targetWeightUnit by remember { mutableStateOf("g") } // "g" or "kg"
+
+    val isDark = LocalIsDark.current
+    val cardBg = if (isDark) Color(0xFF211D2A) else Color(0xFFF9F6FC)
+    val textMain = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
+    val textSecondary = if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F)
+    val inputBg = if (isDark) Color(0xFF2E2A36) else Color.White
+    val borderColor = if (isDark) Color(0xFF49454F) else Color(0xFFE1DDF3)
+
+    // Parse values and calculate cost
+    val calculatedCost: Double? = remember(baseWeight, baseWeightUnit, basePrice, targetWeight, targetWeightUnit) {
+        try {
+            val bw = baseWeight.toDoubleOrNull() ?: 0.0
+            val bp = basePrice.toDoubleOrNull() ?: 0.0
+            val tw = targetWeight.toDoubleOrNull() ?: 0.0
+
+            if (bw <= 0.0 || bp < 0.0 || tw < 0.0) {
+                null
+            } else {
+                val bwInBase = if (baseWeightUnit == "kg") bw * 1000.0 else bw
+                val twInBase = if (targetWeightUnit == "kg") tw * 1000.0 else tw
+                (bp / bwInBase) * twInBase
+            }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    var isExpanded by remember { mutableStateOf(true) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
+        shape = RoundedCornerShape(16.dp),
+        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            // Header row
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { isExpanded = !isExpanded },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.ShoppingCart,
+                        contentDescription = "Calculator",
+                        tint = theme.primary(),
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(
+                            text = "⚖️ Simple Gram & Cost Calculator",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = theme.primary()
+                        )
+                        Text(
+                            text = "Tap to calculate how much custom grams cost (e.g., Sugar/Rice)",
+                            fontSize = 11.sp,
+                            color = textSecondary
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (isExpanded) "Collapse" else "Expand",
+                    tint = textSecondary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+
+            AnimatedVisibility(visible = isExpanded) {
+                Column(modifier = Modifier.padding(top = 14.dp)) {
+                    // Help Presets Row
+                    Text(
+                        text = "Step 1: Tap a quick example to learn how it works:",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = theme.primary(),
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+
+                    // Presets horizontal scroll row
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp)
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        val presets = listOf(
+                            Triple("Sugar example (100g = ₹50)", "100", "50"),
+                            Triple("Rice example (1kg = ₹90)", "1", "90"),
+                            Triple("Spices example (50g = ₹35)", "50", "35"),
+                            Triple("Tea example (250g = ₹120)", "250", "120")
+                        )
+                        presets.forEach { (label, presetWeight, presetPrice) ->
+                            val unitVal = if (label.contains("1kg")) "kg" else "g"
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(theme.primary().copy(alpha = 0.08f))
+                                    .border(1.dp, theme.primary().copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        baseWeight = presetWeight
+                                        baseWeightUnit = unitVal
+                                        basePrice = presetPrice
+                                        targetWeight = if (unitVal == "kg") "0.5" else "20"
+                                        targetWeightUnit = if (unitVal == "kg") "kg" else "g"
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = theme.primary()
+                                )
+                            }
+                        }
+                    }
+
+                    // Base Pricing Inputs
+                    Text(
+                        text = "Step 2: Enter known pricing (e.g. 100g costs ₹50):",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = textSecondary,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Base weight field
+                        OutlinedTextField(
+                            value = baseWeight,
+                            onValueChange = { baseWeight = it },
+                            label = { Text("Weight", fontSize = 10.sp) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = textMain,
+                                unfocusedTextColor = textMain,
+                                focusedContainerColor = inputBg,
+                                unfocusedContainerColor = inputBg,
+                                focusedLabelColor = theme.primary(),
+                                unfocusedLabelColor = textSecondary,
+                                focusedBorderColor = theme.primary(),
+                                unfocusedBorderColor = borderColor
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1.3f),
+                            singleLine = true
+                        )
+
+                        // Base unit select (g / kg toggle button)
+                        Button(
+                            onClick = { baseWeightUnit = if (baseWeightUnit == "g") "kg" else "g" },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = theme.primary().copy(alpha = 0.12f),
+                                contentColor = theme.primary()
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .weight(0.9f)
+                                .height(56.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text(baseWeightUnit, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Icon(Icons.Default.SwapVert, contentDescription = null, modifier = Modifier.size(12.dp))
+                            }
+                        }
+
+                        // Label "costs"
+                        Text(
+                            text = "costs",
+                            fontSize = 11.sp,
+                            color = textSecondary,
+                            modifier = Modifier.weight(0.6f),
+                            textAlign = TextAlign.Center
+                        )
+
+                        // Base price field
+                        OutlinedTextField(
+                            value = basePrice,
+                            onValueChange = { basePrice = it },
+                            label = { Text("Price (₹)", fontSize = 10.sp) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = textMain,
+                                unfocusedTextColor = textMain,
+                                focusedContainerColor = inputBg,
+                                unfocusedContainerColor = inputBg,
+                                focusedLabelColor = theme.primary(),
+                                unfocusedLabelColor = textSecondary,
+                                focusedBorderColor = theme.primary(),
+                                unfocusedBorderColor = borderColor
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1.3f),
+                            singleLine = true
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Target Weight input
+                    Text(
+                        text = "Step 3: Enter the custom weight you want to buy:",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = textSecondary,
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Quick minus button
+                        IconButton(
+                            onClick = {
+                                val current = targetWeight.toDoubleOrNull() ?: 0.0
+                                val step = if (targetWeightUnit == "kg") 0.1 else 10.0
+                                if (current > step) {
+                                    targetWeight = if (targetWeightUnit == "kg") {
+                                        "%.1f".format(current - step)
+                                    } else {
+                                        "%.0f".format(current - step)
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(theme.primary().copy(alpha = 0.08f))
+                        ) {
+                            Text("-", fontWeight = FontWeight.Bold, color = theme.primary(), fontSize = 18.sp)
+                        }
+
+                        // Target weight input field
+                        OutlinedTextField(
+                            value = targetWeight,
+                            onValueChange = { targetWeight = it },
+                            label = { Text("Buy Weight", fontSize = 10.sp) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = textMain,
+                                unfocusedTextColor = textMain,
+                                focusedContainerColor = inputBg,
+                                unfocusedContainerColor = inputBg,
+                                focusedLabelColor = theme.primary(),
+                                unfocusedLabelColor = textSecondary,
+                                focusedBorderColor = theme.primary(),
+                                unfocusedBorderColor = borderColor
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.weight(1.5f),
+                            singleLine = true
+                        )
+
+                        // Quick plus button
+                        IconButton(
+                            onClick = {
+                                val current = targetWeight.toDoubleOrNull() ?: 0.0
+                                val step = if (targetWeightUnit == "kg") 0.1 else 10.0
+                                targetWeight = if (targetWeightUnit == "kg") {
+                                    "%.1f".format(current + step)
+                                } else {
+                                    "%.0f".format(current + step)
+                                }
+                            },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(theme.primary().copy(alpha = 0.08f))
+                        ) {
+                            Text("+", fontWeight = FontWeight.Bold, color = theme.primary(), fontSize = 18.sp)
+                        }
+
+                        // Target unit select
+                        Button(
+                            onClick = { targetWeightUnit = if (targetWeightUnit == "g") "kg" else "g" },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = theme.primary().copy(alpha = 0.12f),
+                                contentColor = theme.primary()
+                            ),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(56.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text(targetWeightUnit, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Icon(Icons.Default.SwapVert, contentDescription = null, modifier = Modifier.size(12.dp))
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Target Quick Preset Chips Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val targets = if (targetWeightUnit == "kg") {
+                            listOf("0.1", "0.25", "0.5", "1", "2")
+                        } else {
+                            listOf("10", "20", "50", "100", "250", "500")
+                        }
+                        targets.forEach { value ->
+                            val isSel = targetWeight == value
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(if (isSel) theme.primary() else theme.primary().copy(alpha = 0.05f))
+                                    .clickable { targetWeight = value }
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = "$value$targetWeightUnit",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSel) Color.White else theme.primary()
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Final Conversational Calculation Result panel
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(theme.primary().copy(alpha = 0.12f))
+                            .border(1.5.dp, theme.primary().copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                            .padding(14.dp)
+                    ) {
+                        Column {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = "Result Info",
+                                        tint = theme.primary(),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Answer",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = theme.primary()
+                                    )
+                                }
+
+                                Text(
+                                    text = "₹${"%.2f".format(calculatedCost ?: 0.0)}",
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = theme.primary()
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text = if (calculatedCost != null) {
+                                    "✨ If $baseWeight$baseWeightUnit costs ₹$basePrice, then $targetWeight$targetWeightUnit will cost exactly ₹${"%.2f".format(calculatedCost)}."
+                                } else {
+                                    "⚠️ Please enter a valid weight and cost to calculate the price."
+                                },
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = textMain,
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
                 }
             }
         }
