@@ -34,6 +34,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -45,6 +46,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
@@ -1429,7 +1431,6 @@ fun AppSettingsDialog(
     val textMain = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
     val textSecondary = if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F)
     val themeColor = selectedTheme.primary()
-    val cardBg = if (isDark) Color(0xFF25232A) else Color(0xFFF4F3F6)
     val borderStrokeColor = (if (isDark) Color(0xFF49454F) else Color(0xFFCAC4D0)).copy(alpha = 0.5f)
 
     Dialog(onDismissRequest = onDismiss) {
@@ -1484,256 +1485,277 @@ fun AppSettingsDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                // Card 1: Appearance & Style
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = cardBg),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor.copy(alpha = 0.3f))
+                // APPEARANCE SECTION
+                Text(
+                    text = "Appearance",
+                    color = themeColor,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.padding(vertical = 6.dp)
+                )
+
+                // Theme color horizontal list
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = null,
-                                tint = themeColor,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Appearance & Theme",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = themeColor
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(10.dp))
-                        
-                        // Theme Switcher dots
-                        @OptIn(ExperimentalLayoutApi::class)
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                    items(TaskCardTheme.values()) { theme ->
+                        val isSelected = selectedTheme == theme
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .background(Color(theme.getColors(isDark).container))
+                                .border(
+                                    width = if (isSelected) 3.dp else 1.dp,
+                                    color = if (isSelected) Color(theme.getColors(isDark).primary) else borderStrokeColor.copy(alpha = 0.3f),
+                                    shape = CircleShape
+                                )
+                                .clickable { viewModel.selectTheme(theme) },
+                            contentAlignment = Alignment.Center
                         ) {
-                            TaskCardTheme.values().forEach { theme ->
-                                val isSelected = selectedTheme == theme
-                                Box(
-                                    modifier = Modifier
-                                        .size(38.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(theme.getColors(isDark).container))
-                                        .border(
-                                            width = if (isSelected) 3.dp else 1.dp,
-                                            color = if (isSelected) Color(theme.getColors(isDark).primary) else borderStrokeColor.copy(alpha = 0.5f),
-                                            shape = CircleShape
-                                        )
-                                        .clickable { viewModel.selectTheme(theme) },
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Box(
+                            Box(
+                                modifier = Modifier
+                                    .size(12.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(theme.getColors(isDark).primary))
+                            ) {
+                                if (isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Default.Check,
+                                        contentDescription = "Selected",
+                                        tint = Color.White,
                                         modifier = Modifier
-                                            .size(14.dp)
-                                            .clip(CircleShape)
-                                            .background(Color(theme.getColors(isDark).primary))
-                                    ) {
-                                        if (isSelected) {
-                                            Icon(
-                                                imageVector = Icons.Default.Check,
-                                                contentDescription = "Selected",
-                                                tint = Color.White,
-                                                modifier = Modifier
-                                                    .size(10.dp)
-                                                    .align(Alignment.Center)
-                                            )
-                                        }
-                                    }
+                                            .size(8.dp)
+                                            .align(Alignment.Center)
+                                    )
                                 }
                             }
                         }
+                    }
+                }
 
-                        Spacer(modifier = Modifier.height(10.dp))
-                        
-                        // Theme Label
+                Text(
+                    text = "Active Palette: ${selectedTheme.displayName}",
+                    color = textSecondary,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+
+                // Dark theme row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Box(
                             modifier = Modifier
+                                .size(32.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(themeColor.copy(alpha = 0.1f))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                .background(themeColor.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = "Active Theme: ${selectedTheme.displayName}",
-                                color = themeColor,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-                        Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(borderStrokeColor.copy(alpha = 0.3f)))
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        // Dark Theme Toggle row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Dark Theme",
-                                    color = textMain,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "Force dark theme across the app",
-                                    color = textSecondary,
-                                    fontSize = 10.sp
-                                )
-                            }
-                            Switch(
-                                checked = isDark,
-                                onCheckedChange = { isChecked ->
-                                    viewModel.toggleDarkTheme(isChecked)
-                                },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = themeColor,
-                                    checkedTrackColor = themeColor.copy(alpha = 0.25f)
-                                )
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Card 2: Alerts & Notifications
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = cardBg),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor.copy(alpha = 0.3f))
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.NotificationsActive,
-                                contentDescription = null,
-                                tint = themeColor,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Reminders & Alerts",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = themeColor
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Task Reminders",
-                                    color = textMain,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "Receive notifications for overdue planner tasks",
-                                    color = textSecondary,
-                                    fontSize = 10.sp
-                                )
-                            }
-                            Switch(
-                                checked = areRemindersEnabled,
-                                onCheckedChange = { isChecked ->
-                                    viewModel.toggleRemindersEnabled()
-                                    if (isChecked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !permissionGranted) {
-                                        onRequestNotificationPermission()
-                                    }
-                                },
-                                colors = SwitchDefaults.colors(
-                                    checkedThumbColor = themeColor,
-                                    checkedTrackColor = themeColor.copy(alpha = 0.25f)
-                                )
-                            )
-                        }
-
-                        if (areRemindersEnabled) {
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Button(
-                                onClick = { viewModel.triggerTestReminder() },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = themeColor.copy(alpha = 0.15f),
-                                    contentColor = themeColor
-                                ),
-                                shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("Test Alert Notification", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Card 3: Privacy & Security
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = cardBg),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor.copy(alpha = 0.3f))
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 imageVector = Icons.Default.Info,
                                 contentDescription = null,
                                 tint = themeColor,
                                 modifier = Modifier.size(16.dp)
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
                             Text(
-                                text = "Offline Privacy",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = themeColor
+                                text = "Dark Theme",
+                                color = textMain,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Use dark mode across the app",
+                                color = textSecondary,
+                                fontSize = 10.sp
                             )
                         }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "All planner records remain stored offline and fully private on your device.",
-                            color = textSecondary,
-                            fontSize = 10.sp,
-                            lineHeight = 14.sp
+                    }
+                    Switch(
+                        checked = isDark,
+                        onCheckedChange = { isChecked ->
+                            viewModel.toggleDarkTheme(isChecked)
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = themeColor,
+                            checkedTrackColor = themeColor.copy(alpha = 0.25f)
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
+                    )
+                }
 
-                        Button(
-                            onClick = onRequestPrivacy,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = themeColor.copy(alpha = 0.15f),
-                                contentColor = themeColor
-                            ),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.fillMaxWidth()
+                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(borderStrokeColor.copy(alpha = 0.2f)))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // ALERTS SECTION
+                Text(
+                    text = "Alerts & Notifications",
+                    color = themeColor,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.padding(vertical = 6.dp)
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(themeColor.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text("Read Privacy Policy", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            Icon(
+                                imageVector = Icons.Default.NotificationsActive,
+                                contentDescription = null,
+                                tint = themeColor,
+                                modifier = Modifier.size(16.dp)
+                            )
                         }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Task Reminders",
+                                color = textMain,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Alerts for overdue tasks",
+                                color = textSecondary,
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = areRemindersEnabled,
+                        onCheckedChange = { isChecked ->
+                            viewModel.toggleRemindersEnabled()
+                            if (isChecked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !permissionGranted) {
+                                onRequestNotificationPermission()
+                            }
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = themeColor,
+                            checkedTrackColor = themeColor.copy(alpha = 0.25f)
+                        )
+                    )
+                }
+
+                if (areRemindersEnabled) {
+                    Button(
+                        onClick = { viewModel.triggerTestReminder() },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = themeColor.copy(alpha = 0.1f),
+                            contentColor = themeColor
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(36.dp)
+                            .padding(horizontal = 4.dp),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text("Test Notification", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(borderStrokeColor.copy(alpha = 0.2f)))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                // PRIVACY & INFO SECTION
+                Text(
+                    text = "Security & Privacy",
+                    color = themeColor,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.padding(vertical = 6.dp)
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(themeColor.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = themeColor,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = "Offline & Secure",
+                            color = textMain,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "All data remains on your physical device.",
+                            color = textSecondary,
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Button(
+                    onClick = onRequestPrivacy,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = themeColor.copy(alpha = 0.1f),
+                        contentColor = themeColor
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(36.dp)
+                        .padding(horizontal = 4.dp),
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Text("Read Privacy Policy", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
 
                 // App Info Footer
                 Column(
