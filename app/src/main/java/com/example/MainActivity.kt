@@ -1,6 +1,7 @@
 package com.example
 
 import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -20,6 +21,8 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.Image
@@ -56,17 +59,22 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Book
 import androidx.compose.material.icons.filled.CheckCircle
@@ -215,7 +223,9 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
     // Local UI controllers
     var currentTab by remember { mutableStateOf(0) }
     var showAddTodoDialog by remember { mutableStateOf(false) }
-    var showSettingsDialog by remember { mutableStateOf(false) }
+    var todoToEdit by remember { mutableStateOf<TodoItem?>(null) }
+    var showSettingsScreen by remember { mutableStateOf(false) }
+    var openKhataSettingsFromMain by remember { mutableStateOf(false) }
     var showPrivacyPolicyScreen by remember { mutableStateOf(false) }
 
     // Categories list
@@ -351,7 +361,7 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                     }
 
                     IconButton(
-                        onClick = { showSettingsDialog = true },
+                        onClick = { showSettingsScreen = true },
                         modifier = Modifier
                             .size(40.dp)
                             .clip(CircleShape)
@@ -828,6 +838,7 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                                     }
                                 },
                                 onToggleComplete = { viewModel.toggleTodoCompleted(item) },
+                                onEdit = { todoToEdit = item },
                                 onDelete = { viewModel.deleteTodo(item) }
                             )
                         }
@@ -854,7 +865,12 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                     }
                 }
                 } else if (currentTab == 1) {
-                    KhataBookDashboard(viewModel = viewModel, theme = selectedTheme)
+                    KhataBookDashboard(
+                        viewModel = viewModel,
+                        theme = selectedTheme,
+                        initialShowSettings = openKhataSettingsFromMain,
+                        onResetInitialSettings = { openKhataSettingsFromMain = false }
+                    )
                 } else {
                     Column(
                         modifier = Modifier
@@ -883,18 +899,41 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
             )
         }
 
-        // Modal App Settings, Theme Switcher, About & Privacy Dialog
-        if (showSettingsDialog) {
-            AppSettingsDialog(
+        // Modal Edit Todo & Time Reminder Dialog
+        if (todoToEdit != null) {
+            EditTodoDialog(
+                todo = todoToEdit!!,
+                theme = selectedTheme,
+                onDismiss = { todoToEdit = null },
+                onUpdateTodo = { updated ->
+                    viewModel.updateTodo(updated)
+                    todoToEdit = null
+                    Toast.makeText(context, "Task & reminder updated!", Toast.LENGTH_SHORT).show()
+                }
+            )
+        }
+
+        // Dedicated Full-screen Settings Section
+        AnimatedVisibility(
+            visible = showSettingsScreen,
+            enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+            exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
+        ) {
+            SettingsScreen(
                 viewModel = viewModel,
-                onDismiss = { showSettingsDialog = false },
+                onBack = { showSettingsScreen = false },
                 onRequestPrivacy = {
-                    showSettingsDialog = false
+                    showSettingsScreen = false
                     showPrivacyPolicyScreen = true
                 },
                 permissionGranted = permissionGranted,
                 onRequestNotificationPermission = {
                     requestPermissionLauncher.launch("android.permission.POST_NOTIFICATIONS")
+                },
+                onOpenKhataSettings = {
+                    showSettingsScreen = false
+                    currentTab = 1
+                    openKhataSettingsFromMain = true
                 }
             )
         }
@@ -972,6 +1011,7 @@ fun TodoCardItem(
     listSize: Int = 0,
     onDragAndSwap: (fromIndex: Int, toIndex: Int) -> Unit = { _, _ -> },
     onToggleComplete: () -> Unit,
+    onEdit: () -> Unit = {},
     onDelete: () -> Unit
 ) {
     // Priority color mapping
@@ -1049,6 +1089,7 @@ fun TodoCardItem(
                 shadowElevation = if (isDragging) 8.dp.toPx() else 0f
             }
             .then(dragModifier)
+            .clickable { onEdit() }
             .testTag("todo_item_card"),
         colors = CardDefaults.cardColors(containerColor = themeContainer),
         shape = RoundedCornerShape(16.dp),
@@ -1148,39 +1189,283 @@ fun TodoCardItem(
                         fontSize = 10.sp
                     )
 
-                    // Due Date
+                    // Scheduled Due Date & Time Reminder
                     if (todo.dueDate != null) {
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Icon(
-                            imageVector = Icons.Default.CalendarToday,
-                            contentDescription = null,
-                            tint = themeText.copy(alpha = 0.6f),
-                            modifier = Modifier.size(10.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        val format = SimpleDateFormat("MMM dd, yyyy", Locale.US)
-                        Text(
-                            text = format.format(Date(todo.dueDate)),
-                            color = themeText.copy(alpha = 0.7f),
-                            fontSize = 10.sp
-                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        val isOverdue = todo.dueDate < System.currentTimeMillis() && !todo.isCompleted
+                        val statusColor = if (isOverdue) Color(0xFFEF4444) else themeText.copy(alpha = 0.7f)
+                        val format = SimpleDateFormat("MMM d, yyyy 'at' hh:mm a", Locale.US)
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (isOverdue) Color(0xFFEF4444).copy(alpha = 0.12f) else themePrimary.copy(alpha = 0.08f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isOverdue) Icons.Default.Warning else Icons.Default.Alarm,
+                                contentDescription = null,
+                                tint = statusColor,
+                                modifier = Modifier.size(10.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = format.format(Date(todo.dueDate)),
+                                color = statusColor,
+                                fontSize = 9.sp,
+                                fontWeight = if (isOverdue) FontWeight.Bold else FontWeight.Medium
+                            )
+                        }
                     }
                 }
+            }
+
+            // Edit Action button
+            IconButton(
+                onClick = onEdit,
+                modifier = Modifier
+                    .size(40.dp)
+                    .testTag("edit_todo_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Edit,
+                    contentDescription = "Edit task",
+                    tint = themeText.copy(alpha = 0.6f),
+                    modifier = Modifier.size(18.dp)
+                )
             }
 
             // Delete Action button
             IconButton(
                 onClick = onDelete,
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(40.dp)
                     .testTag("delete_todo_button")
             ) {
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = "Delete task",
                     tint = themeText.copy(alpha = 0.6f),
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(18.dp)
                 )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TimeReminderSection(
+    dueDate: Long?,
+    onDueDateChange: (Long?) -> Unit,
+    themePrimary: Color
+) {
+    val context = LocalContext.current
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Alarm,
+                    contentDescription = null,
+                    tint = themePrimary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "Time Reminder & Due Date",
+                    color = Color(0xFF1D1B20),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            if (dueDate != null) {
+                TextButton(
+                    onClick = { onDueDateChange(null) },
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Text("Clear", color = Color(0xFFEF4444), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // Selected Date & Time summary box
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (dueDate != null) themePrimary.copy(alpha = 0.08f) else Color(0xFFF4F3F6))
+                .border(
+                    width = 1.dp,
+                    color = if (dueDate != null) themePrimary.copy(alpha = 0.4f) else Color(0xFFCAC4D0),
+                    shape = RoundedCornerShape(10.dp)
+                )
+                .padding(12.dp)
+        ) {
+            if (dueDate == null) {
+                Text(
+                    text = "No time reminder set. Tap 'Pick Date & Time' to schedule an alert.",
+                    color = Color(0xFF49454F),
+                    fontSize = 12.sp
+                )
+            } else {
+                Column {
+                    val dateFormatted = SimpleDateFormat("EEE, MMM d, yyyy", Locale.US).format(Date(dueDate))
+                    val timeFormatted = SimpleDateFormat("hh:mm a", Locale.US).format(Date(dueDate))
+                    Text(
+                        text = dateFormatted,
+                        color = Color(0xFF1D1B20),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "⏰ System Alert at $timeFormatted",
+                        color = themePrimary,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Action Buttons: Pick Date & Time / Change Time
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Button(
+                onClick = {
+                    val cal = Calendar.getInstance()
+                    if (dueDate != null) cal.timeInMillis = dueDate
+
+                    DatePickerDialog(
+                        context,
+                        { _, year, month, dayOfMonth ->
+                            val selCal = Calendar.getInstance()
+                            if (dueDate != null) selCal.timeInMillis = dueDate
+                            selCal.set(Calendar.YEAR, year)
+                            selCal.set(Calendar.MONTH, month)
+                            selCal.set(Calendar.DAY_OF_MONTH, dayOfMonth)
+
+                            TimePickerDialog(
+                                context,
+                                { _, hourOfDay, minute ->
+                                    selCal.set(Calendar.HOUR_OF_DAY, hourOfDay)
+                                    selCal.set(Calendar.MINUTE, minute)
+                                    selCal.set(Calendar.SECOND, 0)
+                                    selCal.set(Calendar.MILLISECOND, 0)
+                                    onDueDateChange(selCal.timeInMillis)
+                                },
+                                selCal.get(Calendar.HOUR_OF_DAY),
+                                selCal.get(Calendar.MINUTE),
+                                false
+                            ).show()
+                        },
+                        cal.get(Calendar.YEAR),
+                        cal.get(Calendar.MONTH),
+                        cal.get(Calendar.DAY_OF_MONTH)
+                    ).show()
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = themePrimary,
+                    contentColor = Color.White
+                ),
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.weight(1f),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+            ) {
+                Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Pick Date & Time", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+
+            if (dueDate != null) {
+                Button(
+                    onClick = {
+                        val cal = Calendar.getInstance()
+                        cal.timeInMillis = dueDate
+                        TimePickerDialog(
+                            context,
+                            { _, hourOfDay, minute ->
+                                cal.set(Calendar.HOUR_OF_DAY, hourOfDay)
+                                cal.set(Calendar.MINUTE, minute)
+                                cal.set(Calendar.SECOND, 0)
+                                cal.set(Calendar.MILLISECOND, 0)
+                                onDueDateChange(cal.timeInMillis)
+                            },
+                            cal.get(Calendar.HOUR_OF_DAY),
+                            cal.get(Calendar.MINUTE),
+                            false
+                        ).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = themePrimary.copy(alpha = 0.15f),
+                        contentColor = themePrimary
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.weight(1f),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
+                ) {
+                    Icon(Icons.Default.Alarm, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Change Time", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Quick Preset Chips
+        Text(text = "Quick Time Presets:", color = Color(0xFF49454F), fontSize = 11.sp)
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            val presets = listOf(
+                "In 1 hr" to { System.currentTimeMillis() + 3600_000L },
+                "Tonight 8 PM" to {
+                    val cal = Calendar.getInstance()
+                    cal.set(Calendar.HOUR_OF_DAY, 20)
+                    cal.set(Calendar.MINUTE, 0)
+                    cal.set(Calendar.SECOND, 0)
+                    if (cal.timeInMillis <= System.currentTimeMillis()) {
+                        cal.add(Calendar.DAY_OF_MONTH, 1)
+                    }
+                    cal.timeInMillis
+                },
+                "Tomorrow 9 AM" to {
+                    val cal = Calendar.getInstance()
+                    cal.add(Calendar.DAY_OF_MONTH, 1)
+                    cal.set(Calendar.HOUR_OF_DAY, 9)
+                    cal.set(Calendar.MINUTE, 0)
+                    cal.set(Calendar.SECOND, 0)
+                    cal.timeInMillis
+                }
+            )
+
+            presets.forEach { (label, getMillis) ->
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(themePrimary.copy(alpha = 0.1f))
+                        .border(1.dp, themePrimary.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
+                        .clickable { onDueDateChange(getMillis()) }
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                ) {
+                    Text(label, color = themePrimary, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }
@@ -1214,6 +1499,7 @@ fun AddTodoDialog(
                 modifier = Modifier
                     .padding(20.dp)
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
             ) {
                 Text(
                     text = "New Secure Task",
@@ -1335,50 +1621,14 @@ fun AddTodoDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                // Date Picker row
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text(text = "Due Date", color = Color(0xFF49454F), fontSize = 12.sp)
-                        val dateText = if (dueDate == null) {
-                            "No due date"
-                        } else {
-                            SimpleDateFormat("MMM dd, yyyy", Locale.US).format(Date(dueDate!!))
-                        }
-                        Text(text = dateText, color = Color(0xFF1D1B20), fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                    }
-
-                    Button(
-                        onClick = {
-                            val calendar = Calendar.getInstance()
-                            DatePickerDialog(
-                                context,
-                                { _, year, month, dayOfMonth ->
-                                    val selectedCal = Calendar.getInstance()
-                                    selectedCal.set(year, month, dayOfMonth)
-                                    dueDate = selectedCal.timeInMillis
-                                },
-                                calendar.get(Calendar.YEAR),
-                                calendar.get(Calendar.MONTH),
-                                calendar.get(Calendar.DAY_OF_MONTH)
-                            ).show()
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = themePrimary.copy(alpha = 0.15f),
-                            contentColor = themePrimary
-                        ),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Icon(Icons.Default.CalendarToday, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(text = "Choose", fontSize = 12.sp)
-                    }
-                }
+                // Time Reminder Section
+                TimeReminderSection(
+                    dueDate = dueDate,
+                    onDueDateChange = { dueDate = it },
+                    themePrimary = themePrimary
+                )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
@@ -1414,379 +1664,729 @@ fun AddTodoDialog(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppSettingsDialog(
-    viewModel: TodoViewModel,
+fun EditTodoDialog(
+    todo: TodoItem,
+    theme: TaskCardTheme,
     onDismiss: () -> Unit,
+    onUpdateTodo: (TodoItem) -> Unit
+) {
+    var title by remember { mutableStateOf(todo.title) }
+    var description by remember { mutableStateOf(todo.description) }
+    var priority by remember { mutableStateOf(todo.priority) }
+    var category by remember { mutableStateOf(todo.category) }
+    var dueDate by remember { mutableStateOf<Long?>(todo.dueDate) }
+    var isCategoryDropdownExpanded by remember { mutableStateOf(false) }
+
+    val categories = listOf("Personal", "Work", "Shopping", "Finance", "Wellness")
+    val context = LocalContext.current
+    val themePrimary = Color(theme.primaryColor)
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFFFEF7FF),
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCAC4D0))
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Text(
+                    text = "Edit Task & Reminder",
+                    color = Color(0xFF1D1B20),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Task Title", color = Color(0xFF49454F)) },
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = themePrimary,
+                        unfocusedBorderColor = Color(0xFF79747E),
+                        focusedTextColor = Color(0xFF1D1B20),
+                        unfocusedTextColor = Color(0xFF1D1B20)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Description", color = Color(0xFF49454F)) },
+                    maxLines = 3,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = themePrimary,
+                        unfocusedBorderColor = Color(0xFF79747E),
+                        focusedTextColor = Color(0xFF1D1B20),
+                        unfocusedTextColor = Color(0xFF1D1B20)
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(text = "Category", color = Color(0xFF49454F), fontSize = 12.sp)
+                ExposedDropdownMenuBox(
+                    expanded = isCategoryDropdownExpanded,
+                    onExpandedChange = { isCategoryDropdownExpanded = !isCategoryDropdownExpanded }
+                ) {
+                    OutlinedTextField(
+                        readOnly = true,
+                        value = category,
+                        onValueChange = {},
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isCategoryDropdownExpanded) },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = themePrimary,
+                            unfocusedBorderColor = Color(0xFF79747E),
+                            focusedTextColor = Color(0xFF1D1B20),
+                            unfocusedTextColor = Color(0xFF1D1B20)
+                        ),
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = isCategoryDropdownExpanded,
+                        onDismissRequest = { isCategoryDropdownExpanded = false },
+                        modifier = Modifier.background(Color(0xFFFEF7FF))
+                    ) {
+                        categories.forEach { selection ->
+                            DropdownMenuItem(
+                                text = { Text(selection, color = Color(0xFF1D1B20)) },
+                                onClick = {
+                                    category = selection
+                                    isCategoryDropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(text = "Priority Level", color = Color(0xFF49454F), fontSize = 12.sp)
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    listOf(
+                        Triple(0, "Low", Color(0xFF10B981)),
+                        Triple(1, "Medium", Color(0xFFF59E0B)),
+                        Triple(2, "High", Color(0xFFEF4444))
+                    ).forEach { (level, name, color) ->
+                        val isSelected = priority == level
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .padding(horizontal = 4.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) color.copy(alpha = 0.2f) else Color.Transparent)
+                                .border(1.dp, Color(0xFF79747E), RoundedCornerShape(8.dp))
+                                .clickable { priority = level }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = name,
+                                color = if (isSelected) color else Color(0xFF49454F),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                TimeReminderSection(
+                    dueDate = dueDate,
+                    onDueDateChange = { dueDate = it },
+                    themePrimary = themePrimary
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("Cancel", color = Color(0xFF49454F))
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Button(
+                        onClick = {
+                            if (title.isBlank()) {
+                                Toast.makeText(context, "Please enter a title", Toast.LENGTH_SHORT).show()
+                            } else {
+                                onUpdateTodo(
+                                    todo.copy(
+                                        title = title,
+                                        description = description,
+                                        priority = priority,
+                                        category = category,
+                                        dueDate = dueDate
+                                    )
+                                )
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = themePrimary,
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Update Task", color = Color.White)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SettingsScreen(
+    viewModel: TodoViewModel,
+    onBack: () -> Unit,
     onRequestPrivacy: () -> Unit,
     permissionGranted: Boolean,
-    onRequestNotificationPermission: () -> Unit
+    onRequestNotificationPermission: () -> Unit,
+    onOpenKhataSettings: () -> Unit = {}
 ) {
     val areRemindersEnabled by viewModel.areRemindersEnabled.collectAsState()
     val selectedTheme by viewModel.selectedTheme.collectAsState()
     val isDark by viewModel.isDarkTheme.collectAsState()
+    val todos by viewModel.filteredTodos.collectAsState()
     val scrollState = rememberScrollState()
 
-    val surfaceColor = if (isDark) Color(0xFF1D1B22) else Color(0xFFFEF7FF)
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences("khatabook_prefs", Context.MODE_PRIVATE) }
+    var glassMode by remember { mutableStateOf(prefs.getBoolean("glass_mode", true)) }
+
+    var showClearConfirmDialog by remember { mutableStateOf(false) }
+
+    val surfaceColor = if (isDark) Color(0xFF141218) else Color(0xFFFEF7FF)
+    val cardBg = if (isDark) Color(0xFF1D1B22) else Color(0xFFFFFFFF)
     val textMain = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
     val textSecondary = if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F)
     val themeColor = selectedTheme.primary()
-    val borderStrokeColor = (if (isDark) Color(0xFF49454F) else Color(0xFFCAC4D0)).copy(alpha = 0.5f)
+    val borderStrokeColor = (if (isDark) Color(0xFF49454F) else Color(0xFFCAC4D0)).copy(alpha = 0.4f)
 
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = surfaceColor,
-            border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor),
+    val completedCount = todos.count { it.isCompleted }
+    val totalCount = todos.size
+
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = surfaceColor
+    ) {
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .wrapContentHeight()
+                .fillMaxSize()
+                .statusBarsPadding()
         ) {
+            // Top Bar Header with Back Navigation
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(themeColor.copy(alpha = 0.12f))
+                        .testTag("settings_back_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back to Main",
+                        tint = themeColor,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "App Settings",
+                        color = textMain,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Text(
+                        text = "Customize layout, notifications & security",
+                        color = textSecondary,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Main Settings Scrollable Section
             Column(
                 modifier = Modifier
-                    .padding(24.dp)
+                    .fillMaxSize()
                     .verticalScroll(scrollState)
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                // Section 1: Appearance & Theme Customization
+                Text(
+                    text = "APPEARANCE & THEMES",
+                    color = themeColor,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
+                )
+
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = cardBg),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(themeColor.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(themeColor.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Palette,
+                                    contentDescription = null,
+                                    tint = themeColor,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("Accent Color Palette", color = textMain, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text("Current: ${selectedTheme.displayName}", color = textSecondary, fontSize = 11.sp)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(TaskCardTheme.values()) { theme ->
+                                val isSelected = selectedTheme == theme
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(theme.getColors(isDark).container))
+                                        .border(
+                                            width = if (isSelected) 3.dp else 1.dp,
+                                            color = if (isSelected) Color(theme.getColors(isDark).primary) else borderStrokeColor,
+                                            shape = CircleShape
+                                        )
+                                        .clickable { viewModel.selectTheme(theme) },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(theme.getColors(isDark).primary))
+                                    ) {
+                                        if (isSelected) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = "Selected",
+                                                tint = Color.White,
+                                                modifier = Modifier
+                                                    .size(10.dp)
+                                                    .align(Alignment.Center)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(borderStrokeColor.copy(alpha = 0.3f)))
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Dark Theme Switch Toggle
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Dark Mode", color = textMain, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text("Use dark high-contrast mode", color = textSecondary, fontSize = 11.sp)
+                            }
+                            Switch(
+                                checked = isDark,
+                                onCheckedChange = { viewModel.toggleDarkTheme(it) },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = themeColor,
+                                    checkedTrackColor = themeColor.copy(alpha = 0.25f)
+                                )
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(borderStrokeColor.copy(alpha = 0.3f)))
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Glassmorphism UI Theme Switch Toggle
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Visual Glassmorphism & UI Themes", color = textMain, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text("Frosted translucent cards with dynamic refraction gradients", color = textSecondary, fontSize = 11.sp)
+                            }
+                            Switch(
+                                checked = glassMode,
+                                onCheckedChange = {
+                                    glassMode = it
+                                    prefs.edit().putBoolean("glass_mode", it).apply()
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = themeColor,
+                                    checkedTrackColor = themeColor.copy(alpha = 0.25f)
+                                )
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // Section 2: Khata Ledger Settings Option
+                Text(
+                    text = "KHATA LEDGER & STORE SETTINGS",
+                    color = themeColor,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
+                )
+
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = cardBg),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(themeColor.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Book,
+                                    contentDescription = null,
+                                    tint = themeColor,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                val shopName = prefs.getString("default_shop_name", "KhataIndex") ?: "KhataIndex"
+                                val curr = prefs.getString("currency_symbol", "₹") ?: "₹"
+                                Text("Store & Ledger Profile", color = textMain, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text("Store: $shopName • Active Currency: $curr", color = textSecondary, fontSize = 11.sp)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Button(
+                            onClick = onOpenKhataSettings,
+                            colors = ButtonDefaults.buttonColors(containerColor = themeColor),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Settings,
                                 contentDescription = null,
-                                tint = themeColor,
-                                modifier = Modifier.size(20.dp)
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
                             )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Open Khata Ledger Settings", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "App Settings",
-                            color = textMain,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.ExtraBold
-                        )
-                    }
-                    IconButton(onClick = onDismiss) {
-                        Icon(
-                            imageVector = Icons.Default.Close,
-                            contentDescription = "Close Dialog",
-                            tint = textSecondary
-                        )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
-                // APPEARANCE SECTION
+                // Section 2: Notifications & Reminders
                 Text(
-                    text = "Appearance",
+                    text = "NOTIFICATIONS & REMINDERS",
                     color = themeColor,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp,
-                    modifier = Modifier.padding(vertical = 6.dp)
+                    modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
                 )
 
-                // Theme color horizontal list
-                LazyRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = cardBg),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(TaskCardTheme.values()) { theme ->
-                        val isSelected = selectedTheme == theme
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .clip(CircleShape)
-                                .background(Color(theme.getColors(isDark).container))
-                                .border(
-                                    width = if (isSelected) 3.dp else 1.dp,
-                                    color = if (isSelected) Color(theme.getColors(isDark).primary) else borderStrokeColor.copy(alpha = 0.3f),
-                                    shape = CircleShape
-                                )
-                                .clickable { viewModel.selectTheme(theme) },
-                            contentAlignment = Alignment.Center
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(12.dp)
-                                    .clip(CircleShape)
-                                    .background(Color(theme.getColors(isDark).primary))
-                            ) {
-                                if (isSelected) {
+                            Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(themeColor.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
                                     Icon(
-                                        imageVector = Icons.Default.Check,
-                                        contentDescription = "Selected",
-                                        tint = Color.White,
-                                        modifier = Modifier
-                                            .size(8.dp)
-                                            .align(Alignment.Center)
+                                        imageVector = Icons.Default.NotificationsActive,
+                                        contentDescription = null,
+                                        tint = themeColor,
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Column {
+                                    Text("Task Scheduled Alerts", color = textMain, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                    Text("Overdue & upcoming reminders", color = textSecondary, fontSize = 11.sp)
+                                }
+                            }
+                            Switch(
+                                checked = areRemindersEnabled,
+                                onCheckedChange = { isChecked ->
+                                    viewModel.toggleRemindersEnabled()
+                                    if (isChecked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !permissionGranted) {
+                                        onRequestNotificationPermission()
+                                    }
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = themeColor,
+                                    checkedTrackColor = themeColor.copy(alpha = 0.25f)
+                                )
+                            )
+                        }
+
+                        if (areRemindersEnabled) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = { viewModel.triggerTestReminder() },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = themeColor.copy(alpha = 0.12f),
+                                    contentColor = themeColor
+                                ),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Alarm, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Trigger Test Reminder", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
                 }
 
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // Section 3: Data & Storage
                 Text(
-                    text = "Active Palette: ${selectedTheme.displayName}",
-                    color = textSecondary,
-                    fontSize = 11.sp,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-
-                // Dark theme row
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(themeColor.copy(alpha = 0.12f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Info,
-                                contentDescription = null,
-                                tint = themeColor,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = "Dark Theme",
-                                color = textMain,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Use dark mode across the app",
-                                color = textSecondary,
-                                fontSize = 10.sp
-                            )
-                        }
-                    }
-                    Switch(
-                        checked = isDark,
-                        onCheckedChange = { isChecked ->
-                            viewModel.toggleDarkTheme(isChecked)
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = themeColor,
-                            checkedTrackColor = themeColor.copy(alpha = 0.25f)
-                        )
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(borderStrokeColor.copy(alpha = 0.2f)))
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // ALERTS SECTION
-                Text(
-                    text = "Alerts & Notifications",
+                    text = "DATA & STORAGE VAULT",
                     color = themeColor,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp,
-                    modifier = Modifier.padding(vertical = 6.dp)
+                    modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
                 )
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = cardBg),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(themeColor.copy(alpha = 0.12f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.NotificationsActive,
-                                contentDescription = null,
-                                tint = themeColor,
-                                modifier = Modifier.size(16.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = "Task Reminders",
-                                color = textMain,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Alerts for overdue tasks",
-                                color = textSecondary,
-                                fontSize = 10.sp
-                            )
-                        }
-                    }
-                    Switch(
-                        checked = areRemindersEnabled,
-                        onCheckedChange = { isChecked ->
-                            viewModel.toggleRemindersEnabled()
-                            if (isChecked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !permissionGranted) {
-                                onRequestNotificationPermission()
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(themeColor.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Storage,
+                                    contentDescription = null,
+                                    tint = themeColor,
+                                    modifier = Modifier.size(18.dp)
+                                )
                             }
-                        },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = themeColor,
-                            checkedTrackColor = themeColor.copy(alpha = 0.25f)
-                        )
-                    )
-                }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("Local SQLite Storage", color = textMain, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text("$totalCount Total Tasks stored on device", color = textSecondary, fontSize = 11.sp)
+                            }
+                        }
 
-                if (areRemindersEnabled) {
-                    Button(
-                        onClick = { viewModel.triggerTestReminder() },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = themeColor.copy(alpha = 0.1f),
-                            contentColor = themeColor
-                        ),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(36.dp)
-                            .padding(horizontal = 4.dp),
-                        contentPadding = PaddingValues(0.dp)
-                    ) {
-                        Text("Test Notification", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        if (completedCount > 0) {
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Button(
+                                onClick = { showClearConfirmDialog = true },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFFEF4444).copy(alpha = 0.12f),
+                                    contentColor = Color(0xFFEF4444)
+                                ),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Clear $completedCount Completed Tasks", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
-                Spacer(modifier = Modifier.height(1.dp).fillMaxWidth().background(borderStrokeColor.copy(alpha = 0.2f)))
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
-                // PRIVACY & INFO SECTION
+                // Section 4: Security & Privacy
                 Text(
-                    text = "Security & Privacy",
+                    text = "SECURITY & PRIVACY",
                     color = themeColor,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.sp,
-                    modifier = Modifier.padding(vertical = 6.dp)
+                    modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
                 )
 
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = cardBg),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor),
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(themeColor.copy(alpha = 0.12f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = null,
-                            tint = themeColor,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text(
-                            text = "Offline & Secure",
-                            color = textMain,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = "All data remains on your physical device.",
-                            color = textSecondary,
-                            fontSize = 10.sp
-                        )
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(themeColor.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Shield,
+                                    contentDescription = null,
+                                    tint = themeColor,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("100% Offline Vault", color = textMain, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text("Zero network tracking or ad analytics", color = textSecondary, fontSize = 11.sp)
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Button(
+                            onClick = onRequestPrivacy,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = themeColor.copy(alpha = 0.12f),
+                                contentColor = themeColor
+                            ),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Info, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Read Full Privacy Policy", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(24.dp))
 
-                Button(
-                    onClick = onRequestPrivacy,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = themeColor.copy(alpha = 0.1f),
-                        contentColor = themeColor
-                    ),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(36.dp)
-                        .padding(horizontal = 4.dp),
-                    contentPadding = PaddingValues(0.dp)
-                ) {
-                    Text("Read Privacy Policy", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // App Info Footer
+                // App Info & Version Footer
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
                         text = "Secure Planner Pro v1.2.0",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 12.sp,
                         color = textMain
                     )
                     Text(
-                        text = "Designed by Subhajit Roy",
-                        fontSize = 9.sp,
-                        color = Color.Gray
+                        text = "Designed by Subhajit Roy • Offline Vault",
+                        fontSize = 10.sp,
+                        color = textSecondary
                     )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Button(
-                    onClick = onDismiss,
-                    colors = ButtonDefaults.buttonColors(containerColor = themeColor),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Save & Close Settings", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                }
+                Spacer(modifier = Modifier.height(32.dp))
             }
         }
+    }
+
+    // Confirmation dialog for clearing completed tasks
+    if (showClearConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirmDialog = false },
+            title = { Text("Clear Completed Tasks?", fontWeight = FontWeight.Bold, color = textMain) },
+            text = { Text("Are you sure you want to remove all completed tasks from local storage?", fontSize = 13.sp, color = textSecondary) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.clearCompletedTodos()
+                        showClearConfirmDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444))
+                ) {
+                    Text("Clear All", color = Color.White, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirmDialog = false }) {
+                    Text("Cancel", color = textSecondary)
+                }
+            },
+            containerColor = cardBg,
+            shape = RoundedCornerShape(16.dp)
+        )
     }
 }
 
@@ -1795,12 +2395,17 @@ fun PrivacyPolicyScreen(
     theme: TaskCardTheme,
     onDismiss: () -> Unit
 ) {
+    val isDark = LocalIsDark.current
     val themePrimary = Color(theme.primaryColor)
     val scrollState = rememberScrollState()
 
+    val surfaceBg = if (isDark) Color(0xFF141218) else Color(0xFFFEF7FF)
+    val textMain = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
+    val textSub = if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F)
+
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = Color(0xFFFEF7FF)
+        color = surfaceBg
     ) {
         Column(
             modifier = Modifier
@@ -1833,12 +2438,12 @@ fun PrivacyPolicyScreen(
                         text = "Privacy Policy Vault",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = Color(0xFF1D1B20)
+                        color = textMain
                     )
                     Text(
                         text = "Last updated: July 2026",
                         fontSize = 11.sp,
-                        color = Color.Gray
+                        color = textSub
                     )
                 }
             }
@@ -1861,43 +2466,50 @@ fun PrivacyPolicyScreen(
                 Text(
                     text = "We take your privacy with absolute seriousness. Secure Planner Pro is designed as a completely offline-first personal planner app. There is NO backend server, NO data analytics tracking, and NO third-party ad networks (completely Ad-Free). Here is the comprehensive disclosure of how your information is handled.",
                     fontSize = 13.sp,
-                    color = Color(0xFF49454F),
+                    color = textSub,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
 
-                PrivacySectionHeader(title = "1. Personal Information Collection")
+                PrivacySectionHeader(title = "1. Personal Information Collection", color = textMain)
                 PrivacySectionBody(
-                    text = "We collect absolutely zero personally identifiable information (PII). You are not required to create an account, register an email address, verify your phone number, or connect any social profile to use the application."
+                    text = "We collect absolutely zero personally identifiable information (PII). You are not required to create an account, register an email address, verify your phone number, or connect any social profile to use the application.",
+                    color = textSub
                 )
 
-                PrivacySectionHeader(title = "2. Task Data and Local Storage")
+                PrivacySectionHeader(title = "2. Task Data and Local Storage", color = textMain)
                 PrivacySectionBody(
-                    text = "All data created inside the app (including task titles, detailed descriptions, due dates, categories, priorities, and completed states) is saved strictly on your local physical device. \n\nWe utilize Android's built-in SQLite database engine managed by the Room Persistence Library. No task data is transmitted over the internet, and no cloud-synchronization components are active."
+                    text = "All data created inside the app (including task titles, detailed descriptions, due dates, categories, priorities, and completed states) is saved strictly on your local physical device. \n\nWe utilize Android's built-in SQLite database engine managed by the Room Persistence Library. No task data is transmitted over the internet, and no cloud-synchronization components are active.",
+                    color = textSub
                 )
 
-                PrivacySectionHeader(title = "3. Zero Third-Party Tracker SDKs")
+                PrivacySectionHeader(title = "3. Zero Third-Party Tracker SDKs", color = textMain)
                 PrivacySectionBody(
-                    text = "Unlike traditional apps, Secure Planner Pro has completely REMOVED Google AdSense, AdMob, Firebase Analytics, and any telemetry scripts. There are no tracking scripts or audience measurement networks running in the background. Your behavior, task habits, and schedule remain 100% private to you."
+                    text = "Unlike traditional apps, Secure Planner Pro has completely REMOVED Google AdSense, AdMob, Firebase Analytics, and any telemetry scripts. There are no tracking scripts or audience measurement networks running in the background. Your behavior, task habits, and schedule remain 100% private to you.",
+                    color = textSub
                 )
 
-                PrivacySectionHeader(title = "4. Device Permissions Explained")
+                PrivacySectionHeader(title = "4. Device Permissions Explained", color = textMain)
                 PrivacySectionBody(
-                    text = "• Local System Notifications: Used strictly to schedule alerts for overdue tasks or upcoming deadlines. These notifications are processed completely locally by the Android operating system and do not use any cloud messaging services. \n\n• Boot Completed: Used to re-register scheduled task alerts upon system restart."
+                    text = "• Local System Notifications: Used strictly to schedule alerts for overdue tasks or upcoming deadlines. These notifications are processed completely locally by the Android operating system and do not use any cloud messaging services. \n\n• Boot Completed: Used to re-register scheduled task alerts upon system restart.",
+                    color = textSub
                 )
 
-                PrivacySectionHeader(title = "5. Data Erasure and Lifecycle")
+                PrivacySectionHeader(title = "5. Data Erasure and Lifecycle", color = textMain)
                 PrivacySectionBody(
-                    text = "Since all data is saved locally on your device, you have complete control over its lifecycle. You can wipe your data at any time by: \n\n1. Clearing individual tasks inside the app list.\n2. Selecting 'Clear Completed Tasks' in the interface.\n3. Going to Android Settings -> Apps -> Secure Planner -> Storage -> Clear Data. \n\nUninstalling the application will automatically purge the entire database permanently."
+                    text = "Since all data is saved locally on your device, you have complete control over its lifecycle. You can wipe your data at any time by: \n\n1. Clearing individual tasks inside the app list.\n2. Selecting 'Clear Completed Tasks' in the interface.\n3. Going to Android Settings -> Apps -> Secure Planner -> Storage -> Clear Data. \n\nUninstalling the application will automatically purge the entire database permanently.",
+                    color = textSub
                 )
 
-                PrivacySectionHeader(title = "6. Security Architecture")
+                PrivacySectionHeader(title = "6. Security Architecture", color = textMain)
                 PrivacySectionBody(
-                    text = "Secure Planner Pro operates within the standard Android application secure container sandbox. This isolating mechanism ensures that no other third-party applications installed on your device can inspect, read, or tamper with your tasks or settings database."
+                    text = "Secure Planner Pro operates within the standard Android application secure container sandbox. This isolating mechanism ensures that no other third-party applications installed on your device can inspect, read, or tamper with your tasks or settings database.",
+                    color = textSub
                 )
 
-                PrivacySectionHeader(title = "7. Contact and Support")
+                PrivacySectionHeader(title = "7. Contact and Support", color = textMain)
                 PrivacySectionBody(
-                    text = "If you have any questions or require support regarding your offline planner application, you may contact our lead developer:\n\nDeveloper: Subhajit Roy\nEmail: romendraroy4@gmail.com\nSupport: None"
+                    text = "If you have any questions or require support regarding your offline planner application, you may contact our lead developer:\n\nDeveloper: Subhajit Roy\nEmail: romendraroy4@gmail.com\nSupport: None",
+                    color = textSub
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -1918,22 +2530,22 @@ fun PrivacyPolicyScreen(
 }
 
 @Composable
-fun PrivacySectionHeader(title: String) {
+fun PrivacySectionHeader(title: String, color: Color = Color(0xFF1D1B20)) {
     Text(
         text = title,
         fontSize = 14.sp,
         fontWeight = FontWeight.Bold,
-        color = Color(0xFF1D1B20),
+        color = color,
         modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
     )
 }
 
 @Composable
-fun PrivacySectionBody(text: String) {
+fun PrivacySectionBody(text: String, color: Color = Color(0xFF49454F)) {
     Text(
         text = text,
         fontSize = 12.sp,
-        color = Color(0xFF49454F),
+        color = color,
         modifier = Modifier.padding(bottom = 12.dp)
     )
 }

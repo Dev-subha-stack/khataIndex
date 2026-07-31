@@ -219,25 +219,50 @@ class TodoViewModel(application: Application) : AndroidViewModel(application) {
                 dueDate = dueDate,
                 itemOrder = maxOrder + 1
             )
-            repository.insert(newItem)
+            val insertedId = repository.insert(newItem).toInt()
 
-            // Trigger notification for upcoming or overdue tasks if reminders are enabled
+            // Trigger or schedule notification for scheduled task time reminders
             if (dueDate != null && _areRemindersEnabled.value) {
                 val now = System.currentTimeMillis()
-                val oneDayMillis = 24 * 60 * 60 * 1000L
-                if (dueDate in now..(now + oneDayMillis)) {
-                    showNotification(
-                        getApplication(),
-                        "⏰ Upcoming Task: $title",
-                        "Due in less than 24 hours! Category: $category"
+                if (dueDate > now) {
+                    ReminderReceiver.scheduleTaskReminder(
+                        context = getApplication(),
+                        taskId = insertedId,
+                        title = title,
+                        category = category,
+                        description = description,
+                        triggerAtMillis = dueDate
                     )
-                } else if (dueDate < now) {
+                } else {
                     showNotification(
                         getApplication(),
                         "⚠️ Overdue Task Created: $title",
-                        "The task's due date is already in the past!"
+                        "The task's scheduled time is already in the past!"
                     )
                 }
+            }
+        }
+    }
+
+    fun updateTodo(todo: TodoItem) {
+        viewModelScope.launch {
+            repository.update(todo)
+            if (todo.dueDate != null && _areRemindersEnabled.value && !todo.isCompleted) {
+                val now = System.currentTimeMillis()
+                if (todo.dueDate > now) {
+                    ReminderReceiver.scheduleTaskReminder(
+                        context = getApplication(),
+                        taskId = todo.id,
+                        title = todo.title,
+                        category = todo.category,
+                        description = todo.description,
+                        triggerAtMillis = todo.dueDate
+                    )
+                } else {
+                    ReminderReceiver.cancelTaskReminder(getApplication(), todo.id)
+                }
+            } else {
+                ReminderReceiver.cancelTaskReminder(getApplication(), todo.id)
             }
         }
     }
@@ -246,12 +271,25 @@ class TodoViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val updated = todo.copy(isCompleted = !todo.isCompleted)
             repository.update(updated)
+            if (updated.isCompleted) {
+                ReminderReceiver.cancelTaskReminder(getApplication(), todo.id)
+            } else if (updated.dueDate != null && updated.dueDate > System.currentTimeMillis() && _areRemindersEnabled.value) {
+                ReminderReceiver.scheduleTaskReminder(
+                    context = getApplication(),
+                    taskId = updated.id,
+                    title = updated.title,
+                    category = updated.category,
+                    description = updated.description,
+                    triggerAtMillis = updated.dueDate
+                )
+            }
         }
     }
 
     fun deleteTodo(todo: TodoItem) {
         viewModelScope.launch {
             repository.delete(todo)
+            ReminderReceiver.cancelTaskReminder(getApplication(), todo.id)
         }
     }
 

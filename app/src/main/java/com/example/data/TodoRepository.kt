@@ -9,8 +9,8 @@ class TodoRepository(
     // Todo items delegation
     val allTodos: Flow<List<TodoItem>> = todoDao.getAllTodoItems()
 
-    suspend fun insert(todo: TodoItem) {
-        todoDao.insertTodo(todo)
+    suspend fun insert(todo: TodoItem): Long {
+        return todoDao.insertTodo(todo)
     }
 
     suspend fun update(todo: TodoItem) {

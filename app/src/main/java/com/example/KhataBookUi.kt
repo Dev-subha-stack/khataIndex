@@ -2,12 +2,20 @@ package com.example
 
 import android.content.Context
 import android.content.Intent
+import android.content.ContentValues
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import android.widget.Toast
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.layout.*
@@ -29,7 +37,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -45,17 +56,102 @@ import com.example.data.KhataTransaction
 import java.text.SimpleDateFormat
 import java.util.*
 
+// Helper functions for Currency and Glassmorphism preferences
+fun getCurrencySymbol(context: Context): String {
+    val prefs = context.getSharedPreferences("khatabook_prefs", Context.MODE_PRIVATE)
+    return prefs.getString("currency_symbol", "₹") ?: "₹"
+}
+
+fun formatKhataCurrency(amount: Double, context: Context): String {
+    val prefs = context.getSharedPreferences("khatabook_prefs", Context.MODE_PRIVATE)
+    val symbol = prefs.getString("currency_symbol", "₹") ?: "₹"
+    val showDecimals = prefs.getBoolean("show_decimals", true)
+    return if (showDecimals) {
+        String.format("%s%.2f", symbol, amount)
+    } else {
+        String.format("%s%.0f", symbol, amount)
+    }
+}
+
+@Composable
+fun GlassCardContainer(
+    modifier: Modifier = Modifier,
+    shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(20.dp),
+    themeColor: Color = MaterialTheme.colorScheme.primary,
+    onClick: (() -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val isDark = LocalIsDark.current
+    val prefs = LocalContext.current.getSharedPreferences("khatabook_prefs", Context.MODE_PRIVATE)
+    val glassMode = prefs.getBoolean("glass_mode", true)
+
+    val glassBg = if (glassMode) {
+        if (isDark) Color(0xFF1F1C2B).copy(alpha = 0.68f) else Color.White.copy(alpha = 0.78f)
+    } else {
+        if (isDark) Color(0xFF211D2A) else Color.White
+    }
+
+    val glassBorder = Brush.linearGradient(
+        colors = if (isDark) listOf(
+            Color.White.copy(alpha = 0.32f),
+            themeColor.copy(alpha = 0.45f),
+            Color.White.copy(alpha = 0.1f)
+        ) else listOf(
+            Color.White.copy(alpha = 0.95f),
+            themeColor.copy(alpha = 0.35f),
+            Color.White.copy(alpha = 0.5f)
+        )
+    )
+
+    var isPressed by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.985f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+        label = "glass_scale"
+    )
+
+    Surface(
+        modifier = modifier
+            .scale(scale)
+            .clip(shape)
+            .border(1.dp, glassBorder, shape)
+            .then(
+                if (onClick != null) {
+                    Modifier.clickable {
+                        isPressed = true
+                        onClick()
+                    }
+                } else Modifier
+            ),
+        shape = shape,
+        color = glassBg,
+        tonalElevation = if (glassMode) 6.dp else 2.dp
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            content()
+        }
+    }
+}
+
 @Composable
 fun KhataBookDashboard(
     viewModel: TodoViewModel,
-    theme: TaskCardTheme
+    theme: TaskCardTheme,
+    initialShowSettings: Boolean = false,
+    onResetInitialSettings: () -> Unit = {}
 ) {
     val context = LocalContext.current
     var selectedTab by remember { mutableStateOf(0) } // 0 = Wholesalers (Sellers), 1 = Customers (Consumers)
     var selectedContact by remember { mutableStateOf<KhataContact?>(null) }
     var showAddContactDialog by remember { mutableStateOf(false) }
-    var showKhataSettingsDialog by remember { mutableStateOf(false) }
+    var showKhataSettingsScreen by remember(initialShowSettings) { mutableStateOf(initialShowSettings) }
     var khataSearchQuery by remember { mutableStateOf("") }
+
+    LaunchedEffect(initialShowSettings) {
+        if (initialShowSettings) {
+            showKhataSettingsScreen = true
+        }
+    }
 
     val sellers by viewModel.khataSellers.collectAsState()
     val customers by viewModel.khataCustomers.collectAsState()
@@ -65,9 +161,9 @@ fun KhataBookDashboard(
     val containerBg = theme.container()
 
     AnimatedContent(
-        targetState = selectedContact,
+        targetState = Pair(selectedContact, showKhataSettingsScreen),
         transitionSpec = {
-            if (targetState != null) {
+            if (targetState.second || targetState.first != null) {
                 slideInHorizontally { width -> width } + fadeIn() togetherWith
                         slideOutHorizontally { width -> -width } + fadeOut()
             } else {
@@ -76,8 +172,17 @@ fun KhataBookDashboard(
             }
         },
         label = "KhataNavigation"
-    ) { contact ->
-        if (contact != null) {
+    ) { (contact, showSettings) ->
+        if (showSettings) {
+            KhataSettingsScreen(
+                viewModel = viewModel,
+                theme = theme,
+                onBack = {
+                    showKhataSettingsScreen = false
+                    onResetInitialSettings()
+                }
+            )
+        } else if (contact != null) {
             // Contact Details and Ledgers View
             ContactDetailsScreen(
                 contact = contact,
@@ -87,23 +192,24 @@ fun KhataBookDashboard(
             )
         } else {
             // Main Dashboard List
+            val prefs = remember { context.getSharedPreferences("khatabook_prefs", Context.MODE_PRIVATE) }
+            val showLedgerSummary = remember { prefs.getBoolean("show_ledger_summary", true) }
+            val shopName = remember { prefs.getString("default_shop_name", "KhataIndex") ?: "KhataIndex" }
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 20.dp)
+                    .padding(horizontal = 16.dp)
             ) {
-                // Header Segment
-                Card(
+                // Header Segment with Glassmorphism
+                GlassCardContainer(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 12.dp),
-                    colors = CardDefaults.cardColors(containerColor = containerBg.copy(alpha = 0.5f)),
-                    shape = RoundedCornerShape(16.dp)
+                        .padding(vertical = 10.dp),
+                    themeColor = themeColor
                 ) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Image(
@@ -111,90 +217,184 @@ fun KhataBookDashboard(
                             contentDescription = "KhataIndex Logo",
                             modifier = Modifier
                                 .size(48.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .border(1.dp, Color.LightGray.copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
+                                .clip(RoundedCornerShape(14.dp))
+                                .border(1.dp, themeColor.copy(alpha = 0.4f), RoundedCornerShape(14.dp)),
                             contentScale = ContentScale.Crop
                         )
                         Spacer(modifier = Modifier.width(14.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Khata Ledger Book",
-                                fontWeight = FontWeight.Bold,
+                                text = "$shopName Ledger",
+                                fontWeight = FontWeight.ExtraBold,
                                 fontSize = 18.sp,
                                 color = if (LocalIsDark.current) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
                             )
                             Text(
-                                text = "Track business transactions, credits, and payments securely offline.",
+                                text = "Track credits, payments & WhatsApp statements securely offline.",
                                 fontSize = 11.sp,
                                 color = if (LocalIsDark.current) Color(0xFFCAC4D0) else Color(0xFF49454F)
                             )
                         }
                         IconButton(
-                            onClick = { showKhataSettingsDialog = true }
+                            onClick = { showKhataSettingsScreen = true },
+                            modifier = Modifier
+                                .size(40.dp)
+                                .clip(CircleShape)
+                                .background(themeColor.copy(alpha = 0.15f))
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Settings,
                                 contentDescription = "Khata Settings",
-                                tint = themeColor
+                                tint = themeColor,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
                     }
                 }
 
-                if (showKhataSettingsDialog) {
-                    KhataSettingsDialog(
-                        viewModel = viewModel,
-                        theme = theme,
-                        onDismiss = { showKhataSettingsDialog = false }
-                    )
+                // Optional Net Ledger Summary Header Card
+                if (showLedgerSummary) {
+                    val totalWeOwe = remember(allTransactions, sellers) {
+                        val sellerIds = sellers.map { it.id }.toSet()
+                        val sellerTx = allTransactions.filter { it.contactId in sellerIds }
+                        val owe = sellerTx.filter { it.type == "WE_OWE" }.sumOf { it.amount }
+                        val paid = sellerTx.filter { it.type == "WE_PAID" }.sumOf { it.amount }
+                        (owe - paid).coerceAtLeast(0.0)
+                    }
+                    val totalTheyOweUs = remember(allTransactions, customers) {
+                        val customerIds = customers.map { it.id }.toSet()
+                        val custTx = allTransactions.filter { it.contactId in customerIds }
+                        val owe = custTx.filter { it.type == "THEY_OWE" }.sumOf { it.amount }
+                        val paid = custTx.filter { it.type == "THEY_PAID" }.sumOf { it.amount }
+                        (owe - paid).coerceAtLeast(0.0)
+                    }
+
+                    GlassCardContainer(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 10.dp),
+                        themeColor = themeColor
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(text = "WE OWE WHOLESALERS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                                Text(
+                                    text = formatKhataCurrency(totalWeOwe, context),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFF388E3C)
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .height(30.dp)
+                                    .width(1.dp)
+                                    .background(Color.Gray.copy(alpha = 0.3f))
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                                Text(text = "CUSTOMERS OWE US", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                                Text(
+                                    text = formatKhataCurrency(totalTheyOweUs, context),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFFD32F2F)
+                                )
+                            }
+                        }
+                    }
                 }
 
-                // Tab Switcher for Sellers vs Customers
+                // Frosted Tab Switcher for Sellers vs Customers
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 12.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.LightGray.copy(alpha = 0.2f))
+                        .padding(bottom = 10.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(
+                            if (LocalIsDark.current) Color(0xFF1E1B28).copy(alpha = 0.6f) else Color.LightGray.copy(alpha = 0.25f)
+                        )
+                        .border(1.dp, themeColor.copy(alpha = 0.2f), RoundedCornerShape(16.dp))
                         .padding(4.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (selectedTab == 0) themeColor else Color.Transparent)
-                            .clickable { 
-                                selectedTab = 0
-                                khataSearchQuery = ""
-                            }
-                            .padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "🏢 Wholesalers",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = if (selectedTab == 0) Color.White else (if (LocalIsDark.current) Color(0xFFCAC4D0) else Color(0xFF49454F))
-                        )
+                    listOf("🏢 Wholesalers (${sellers.size})", "🛍️ Customers (${customers.size})").forEachIndexed { index, title ->
+                        val isSelected = selectedTab == index
+                        val tabScale by animateFloatAsState(targetValue = if (isSelected) 1f else 0.96f, label = "tab_scale")
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .scale(tabScale)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (isSelected) Brush.horizontalGradient(
+                                        listOf(themeColor, themeColor.copy(alpha = 0.85f))
+                                    ) else SolidColor(Color.Transparent)
+                                )
+                                .clickable {
+                                    selectedTab = index
+                                    khataSearchQuery = ""
+                                }
+                                .padding(vertical = 10.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = title,
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 12.sp,
+                                color = if (isSelected) Color.White else (if (LocalIsDark.current) Color(0xFFCAC4D0) else Color(0xFF49454F))
+                            )
+                        }
                     }
+                }
+
+                // Section title and Download CSV Action button
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (selectedTab == 0) "Wholesaler Accounts" else "Customer Accounts",
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 14.sp,
+                        color = if (LocalIsDark.current) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
+                    )
+                    
                     Box(
                         modifier = Modifier
-                            .weight(1f)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(if (selectedTab == 1) themeColor else Color.Transparent)
-                            .clickable { 
-                                selectedTab = 1
-                                khataSearchQuery = ""
+                            .background(themeColor.copy(alpha = 0.12f))
+                            .clickable {
+                                downloadAllCustomersCsv(
+                                    context,
+                                    if (selectedTab == 0) sellers else customers,
+                                    allTransactions
+                                )
                             }
-                            .padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
                     ) {
-                        Text(
-                            text = "🛍️ Customers",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            color = if (selectedTab == 1) Color.White else (if (LocalIsDark.current) Color(0xFFCAC4D0) else Color(0xFF49454F))
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Download,
+                                contentDescription = "Download CSV",
+                                tint = themeColor,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Download CSV",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = themeColor
+                            )
+                        }
                     }
                 }
 
@@ -398,32 +598,38 @@ fun ContactLedgerCard(
     theme: TaskCardTheme,
     onClick: () -> Unit
 ) {
+    val context = LocalContext.current
     val themeColor = theme.primary()
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = if (LocalIsDark.current) Color(0xFF211D2A) else Color.White),
-        shape = RoundedCornerShape(14.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, if (LocalIsDark.current) Color(0xFF49454F) else Color.LightGray.copy(alpha = 0.35f))
+    val isDark = LocalIsDark.current
+
+    GlassCardContainer(
+        modifier = Modifier.fillMaxWidth(),
+        themeColor = themeColor,
+        onClick = onClick
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
+            modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(42.dp)
+                    .size(44.dp)
                     .clip(CircleShape)
-                    .background(themeColor.copy(alpha = 0.12f)),
+                    .background(
+                        Brush.radialGradient(
+                            colors = listOf(
+                                themeColor.copy(alpha = 0.35f),
+                                themeColor.copy(alpha = 0.12f)
+                            )
+                        )
+                    )
+                    .border(1.dp, themeColor.copy(alpha = 0.4f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = contact.name.take(1).uppercase(),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 17.sp,
                     color = themeColor
                 )
             }
@@ -433,7 +639,7 @@ fun ContactLedgerCard(
                     text = contact.name,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
-                    color = if (LocalIsDark.current) Color(0xFFE6E1E5) else Color(0xFF1D1B20),
+                    color = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -443,7 +649,7 @@ fun ContactLedgerCard(
                             imageVector = Icons.Default.Phone,
                             contentDescription = null,
                             tint = Color.Gray,
-                            modifier = Modifier.size(10.dp)
+                            modifier = Modifier.size(11.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
@@ -462,9 +668,9 @@ fun ContactLedgerCard(
                     color = Color.Gray
                 )
                 Text(
-                    text = String.format("₹%.2f", balance),
+                    text = formatKhataCurrency(balance, context),
                     fontWeight = FontWeight.ExtraBold,
-                    fontSize = 14.sp,
+                    fontSize = 15.sp,
                     color = if (balance > 0) Color(0xFFD32F2F) else Color(0xFF388E3C)
                 )
             }
@@ -652,6 +858,14 @@ fun ContactDetailsScreen(
                     color = themeColor
                 )
             }
+            // Download contact info action
+            IconButton(
+                onClick = {
+                    downloadCustomerInfoFile(context, contact, transactions, balance)
+                }
+            ) {
+                Icon(Icons.Default.Download, contentDescription = "Download Customer Info", tint = themeColor)
+            }
             // Delete contact action
             IconButton(
                 onClick = {
@@ -664,19 +878,15 @@ fun ContactDetailsScreen(
             }
         }
 
-        // Outstanding Balance Summary Card
-        Card(
+        // Outstanding Balance Summary Card with Glassmorphism
+        GlassCardContainer(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 8.dp),
-            colors = CardDefaults.cardColors(containerColor = containerBg.copy(alpha = 0.35f)),
-            shape = RoundedCornerShape(16.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, themeColor.copy(alpha = 0.15f))
+            themeColor = themeColor
         ) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
@@ -687,32 +897,31 @@ fun ContactDetailsScreen(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = String.format("₹%.2f", balance),
+                    text = formatKhataCurrency(balance, context),
                     fontWeight = FontWeight.Black,
                     fontSize = 28.sp,
                     color = if (balance > 0) Color(0xFFD32F2F) else Color(0xFF388E3C)
                 )
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Send Bill & Copy ledger text row
+                // Send Bill, Copy & Download ledger text row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Button(
+                    OutlinedButton(
                         onClick = {
-                            val billText = generateBillText(contact, transactions, balance)
+                            val billText = generateBillText(contact, transactions, balance, context)
                             clipboardManager.setText(AnnotatedString(billText))
                             Toast.makeText(context, "Statement copied to Clipboard!", Toast.LENGTH_SHORT).show()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = themeColor),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, themeColor.copy(alpha = 0.5f)),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.weight(1f)
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
                     ) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Copy Statement", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Copy", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
 
                     Button(
@@ -720,12 +929,30 @@ fun ContactDetailsScreen(
                             showSendBillDialog = true
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = themeColor, contentColor = Color.White),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.weight(1f)
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1.1f),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
                     ) {
-                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text("Send Bill", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    Button(
+                        onClick = {
+                            downloadCustomerInfoFile(context, contact, transactions, balance)
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (LocalIsDark.current) Color(0xFF2E2A3A) else Color(0xFFF3EDF7),
+                            contentColor = themeColor
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1.3f),
+                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Download Info", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -1215,12 +1442,20 @@ fun AddTransactionDialog(
 }
 
 // Statement and Bill Text compiler helper
-fun generateBillText(contact: KhataContact, transactions: List<KhataTransaction>, balance: Double): String {
+fun generateBillText(contact: KhataContact, transactions: List<KhataTransaction>, balance: Double, context: Context): String {
     val sdf = SimpleDateFormat("dd-MMM-yyyy", Locale.getDefault())
+    val prefs = context.getSharedPreferences("khatabook_prefs", Context.MODE_PRIVATE)
+    val shopName = prefs.getString("default_shop_name", "KhataIndex") ?: "KhataIndex"
+    val shopUpi = prefs.getString("shop_upi_id", "") ?: ""
+    val tagline = prefs.getString("bill_tagline", "Thank you for doing business with us!") ?: "Thank you for doing business with us!"
+
+    val isPaid = balance <= 0.0
+    val statusText = if (isPaid) "BILL STATUS: PAID / FULLY SETTLED ✅" else "BILL STATUS: PAYMENT PENDING ⏳"
+
     val sb = StringBuilder()
-    sb.append("-----------------------------\n")
-    sb.append("   KHATA LEDGER STATEMENT    \n")
-    sb.append("-----------------------------\n")
+    sb.append("=============================\n")
+    sb.append("   $shopName LEDGER STATEMENT\n")
+    sb.append("=============================\n")
     sb.append("Party Name: ${contact.name}\n")
     if (contact.phone.isNotBlank()) {
         sb.append("Phone: ${contact.phone}\n")
@@ -1228,8 +1463,10 @@ fun generateBillText(contact: KhataContact, transactions: List<KhataTransaction>
     sb.append("Account Type: ${if (contact.type == "SELLER") "Wholesaler (Seller)" else "Customer (Buyer)"}\n")
     sb.append("Statement Date: ${sdf.format(Date())}\n")
     sb.append("-----------------------------\n")
+    sb.append("$statusText\n")
+    sb.append("-----------------------------\n")
     sb.append("Transaction Log:\n")
-    
+
     if (transactions.isEmpty()) {
         sb.append("No recorded entries.\n")
     } else {
@@ -1245,19 +1482,309 @@ fun generateBillText(contact: KhataContact, transactions: List<KhataTransaction>
                 }
             }
             val sign = if (tx.type == "THEY_OWE" || tx.type == "WE_OWE") "(+)" else "(-)"
-            sb.append("$dateStr: $desc $sign ₹${tx.amount}\n")
+            sb.append("$dateStr: $desc $sign ${formatKhataCurrency(tx.amount, context)}\n")
         }
     }
-    
+
     sb.append("-----------------------------\n")
     if (contact.type == "SELLER") {
-        sb.append(String.format("NET AMOUNT WE OWE: ₹%.2f\n", balance))
+        sb.append("NET AMOUNT WE OWE: ${formatKhataCurrency(balance, context)}\n")
     } else {
-        sb.append(String.format("NET AMOUNT THEY OWE US: ₹%.2f\n", balance))
+        sb.append("NET AMOUNT THEY OWE US: ${formatKhataCurrency(balance, context)}\n")
+    }
+    if (shopUpi.isNotBlank()) {
+        sb.append("UPI Payment Handle: $shopUpi\n")
     }
     sb.append("-----------------------------\n")
-    sb.append("Thank you for choosing Secure Planner Pro Ledger.\n")
+    sb.append("$tagline\n")
     return sb.toString()
+}
+
+fun buildCustomerReportText(
+    context: Context,
+    contact: KhataContact,
+    transactions: List<KhataTransaction>,
+    balance: Double
+): String {
+    val sdf = SimpleDateFormat("dd-MMM-yyyy, hh:mm a", Locale.getDefault())
+    val dateOnlySdf = SimpleDateFormat("dd-MMM-yyyy", Locale.getDefault())
+    val prefs = context.getSharedPreferences("khatabook_prefs", Context.MODE_PRIVATE)
+    val shopName = prefs.getString("default_shop_name", "KhataIndex") ?: "KhataIndex"
+    val curr = getCurrencySymbol(context)
+
+    val totalPurchases = if (contact.type == "SELLER") {
+        transactions.filter { it.type == "WE_OWE" }.sumOf { it.amount }
+    } else {
+        transactions.filter { it.type == "THEY_OWE" }.sumOf { it.amount }
+    }
+
+    val totalPayments = if (contact.type == "SELLER") {
+        transactions.filter { it.type == "WE_PAID" }.sumOf { it.amount }
+    } else {
+        transactions.filter { it.type == "THEY_PAID" }.sumOf { it.amount }
+    }
+
+    val isSettled = balance <= 0.0
+    val statusStr = if (isSettled) "PAID / FULLY SETTLED ✅" else "PENDING PAYMENT (DUE: $curr${String.format("%.2f", balance)}) ⏳"
+
+    val sb = StringBuilder()
+    sb.append("====================================================\n")
+    sb.append("         $shopName - CUSTOMER LEDGER REPORT\n")
+    sb.append("====================================================\n")
+    sb.append("Customer Name   : ${contact.name}\n")
+    sb.append("Phone Number    : ${if (contact.phone.isNotBlank()) contact.phone else "Not Provided"}\n")
+    sb.append("Account Type    : ${if (contact.type == "SELLER") "Wholesaler (Seller)" else "Customer (Buyer)"}\n")
+    sb.append("Report Date     : ${sdf.format(Date())}\n")
+    sb.append("----------------------------------------------------\n")
+    sb.append("                FINANCIAL SUMMARY                   \n")
+    sb.append("----------------------------------------------------\n")
+    sb.append("Total Entries   : ${transactions.size}\n")
+    sb.append("Total Credit    : ${formatKhataCurrency(totalPurchases, context)}\n")
+    sb.append("Total Paid      : ${formatKhataCurrency(totalPayments, context)}\n")
+    sb.append("Net Balance     : ${formatKhataCurrency(balance, context)}\n")
+    sb.append("Bill Status     : $statusStr\n")
+    sb.append("----------------------------------------------------\n")
+    sb.append("             DETAILED TRANSACTION HISTORY           \n")
+    sb.append("----------------------------------------------------\n")
+
+    if (transactions.isEmpty()) {
+        sb.append("No transactions recorded yet.\n")
+    } else {
+        transactions.forEachIndexed { index, tx ->
+            val dStr = dateOnlySdf.format(Date(tx.timestamp))
+            val typeStr = when (tx.type) {
+                "THEY_OWE" -> "Credit Purchase (+)"
+                "THEY_PAID" -> "Payment Received (-)"
+                "WE_OWE" -> "Wholesale Credit (+)"
+                "WE_PAID" -> "Wholesale Payment (-)"
+                else -> tx.type
+            }
+            val desc = if (tx.description.isNotBlank()) " | ${tx.description}" else ""
+            sb.append("${index + 1}. [$dStr] $typeStr: ${formatKhataCurrency(tx.amount, context)}$desc\n")
+        }
+    }
+
+    sb.append("====================================================\n")
+    sb.append("Generated by $shopName Khata Ledger System\n")
+    sb.append("====================================================\n")
+
+    return sb.toString()
+}
+
+fun downloadCustomerInfoFile(
+    context: Context,
+    contact: KhataContact,
+    transactions: List<KhataTransaction>,
+    balance: Double
+) {
+    val dateSuffix = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+    val safeName = contact.name.trim().replace("[^a-zA-Z0-9]".toRegex(), "_")
+    val fileName = "Customer_${safeName}_$dateSuffix.txt"
+    val content = buildCustomerReportText(context, contact, transactions, balance)
+
+    var savedSuccessfully = false
+
+    try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val resolver = context.contentResolver
+            val contentValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            }
+            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+            if (uri != null) {
+                resolver.openOutputStream(uri)?.use { stream ->
+                    stream.write(content.toByteArray())
+                }
+                savedSuccessfully = true
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            if (!downloadsDir.exists()) downloadsDir.mkdirs()
+            val file = java.io.File(downloadsDir, fileName)
+            java.io.FileOutputStream(file).use { stream ->
+                stream.write(content.toByteArray())
+            }
+            savedSuccessfully = true
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+
+    if (savedSuccessfully) {
+        Toast.makeText(context, "📥 Customer Info downloaded to Downloads folder:\n$fileName", Toast.LENGTH_LONG).show()
+    } else {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText("Customer Info - ${contact.name}", content)
+        clipboard.setPrimaryClip(clip)
+        Toast.makeText(context, "📥 Customer Info copied to Clipboard!", Toast.LENGTH_LONG).show()
+    }
+
+    shareStatement(context, contact.name, content)
+}
+
+fun downloadAllCustomersCsv(
+    context: Context,
+    contacts: List<KhataContact>,
+    allTransactions: List<KhataTransaction>
+) {
+    val dateSuffix = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+    val fileName = "All_Customers_Report_$dateSuffix.csv"
+    val prefs = context.getSharedPreferences("khatabook_prefs", Context.MODE_PRIVATE)
+    val shopName = prefs.getString("default_shop_name", "KhataIndex") ?: "KhataIndex"
+    val curr = getCurrencySymbol(context)
+
+    val sb = StringBuilder()
+    sb.append("ID,Customer Name,Phone Number,Account Type,Total Credit ($curr),Total Paid ($curr),Net Balance ($curr),Bill Status\n")
+
+    contacts.forEach { contact ->
+        val ctx = allTransactions.filter { it.contactId == contact.id }
+        val credit = if (contact.type == "SELLER") {
+            ctx.filter { it.type == "WE_OWE" }.sumOf { it.amount }
+        } else {
+            ctx.filter { it.type == "THEY_OWE" }.sumOf { it.amount }
+        }
+        val paid = if (contact.type == "SELLER") {
+            ctx.filter { it.type == "WE_PAID" }.sumOf { it.amount }
+        } else {
+            ctx.filter { it.type == "THEY_PAID" }.sumOf { it.amount }
+        }
+        val balance = credit - paid
+        val status = if (balance <= 0.0) "PAID" else "PENDING_DUES"
+
+        sb.append("${contact.id},\"${contact.name.replace("\"", "\"\"")}\",\"${contact.phone}\",${contact.type},$credit,$paid,$balance,$status\n")
+    }
+
+    val content = sb.toString()
+    var savedSuccessfully = false
+
+    try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val resolver = context.contentResolver
+            val contentValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                put(MediaStore.MediaColumns.MIME_TYPE, "text/csv")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            }
+            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+            if (uri != null) {
+                resolver.openOutputStream(uri)?.use { stream ->
+                    stream.write(content.toByteArray())
+                }
+                savedSuccessfully = true
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            if (!downloadsDir.exists()) downloadsDir.mkdirs()
+            val file = java.io.File(downloadsDir, fileName)
+            java.io.FileOutputStream(file).use { stream ->
+                stream.write(content.toByteArray())
+            }
+            savedSuccessfully = true
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+
+    if (savedSuccessfully) {
+        Toast.makeText(context, "📥 Customers CSV downloaded to Downloads folder:\n$fileName", Toast.LENGTH_LONG).show()
+    } else {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText("All Customers CSV", content)
+        clipboard.setPrimaryClip(clip)
+        Toast.makeText(context, "📥 Customers CSV copied to Clipboard!", Toast.LENGTH_LONG).show()
+    }
+
+    shareStatement(context, "$shopName Customers Export", content)
+}
+
+fun downloadAllCustomersTextReport(
+    context: Context,
+    contacts: List<KhataContact>,
+    allTransactions: List<KhataTransaction>
+) {
+    val dateSuffix = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+    val fileName = "All_Customers_Summary_$dateSuffix.txt"
+    val prefs = context.getSharedPreferences("khatabook_prefs", Context.MODE_PRIVATE)
+    val shopName = prefs.getString("default_shop_name", "KhataIndex") ?: "KhataIndex"
+    val curr = getCurrencySymbol(context)
+
+    val sb = StringBuilder()
+    sb.append("====================================================\n")
+    sb.append("      $shopName - MASTER CUSTOMERS LEDGER SUMMARY\n")
+    sb.append("====================================================\n")
+    sb.append("Generated On: ${SimpleDateFormat("dd-MMM-yyyy hh:mm a", Locale.getDefault()).format(Date())}\n")
+    sb.append("Total Accounts: ${contacts.size}\n")
+    sb.append("----------------------------------------------------\n\n")
+
+    contacts.forEachIndexed { index, contact ->
+        val ctx = allTransactions.filter { it.contactId == contact.id }
+        val credit = if (contact.type == "SELLER") {
+            ctx.filter { it.type == "WE_OWE" }.sumOf { it.amount }
+        } else {
+            ctx.filter { it.type == "THEY_OWE" }.sumOf { it.amount }
+        }
+        val paid = if (contact.type == "SELLER") {
+            ctx.filter { it.type == "WE_PAID" }.sumOf { it.amount }
+        } else {
+            ctx.filter { it.type == "THEY_PAID" }.sumOf { it.amount }
+        }
+        val balance = credit - paid
+        val status = if (balance <= 0.0) "PAID / CLEARED ✅" else "PENDING DUES (Due: $curr${String.format("%.2f", balance)}) ⏳"
+
+        sb.append("${index + 1}. ${contact.name} (${if (contact.type == "SELLER") "Wholesaler" else "Customer"})\n")
+        sb.append("   Phone: ${if (contact.phone.isNotBlank()) contact.phone else "N/A"}\n")
+        sb.append("   Total Credit: $curr${String.format("%.2f", credit)} | Total Paid: $curr${String.format("%.2f", paid)}\n")
+        sb.append("   Net Balance : $curr${String.format("%.2f", balance)}\n")
+        sb.append("   Bill Status : $status\n")
+        sb.append("----------------------------------------------------\n")
+    }
+
+    val content = sb.toString()
+    var savedSuccessfully = false
+
+    try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val resolver = context.contentResolver
+            val contentValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                put(MediaStore.MediaColumns.MIME_TYPE, "text/plain")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            }
+            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+            if (uri != null) {
+                resolver.openOutputStream(uri)?.use { stream ->
+                    stream.write(content.toByteArray())
+                }
+                savedSuccessfully = true
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            if (!downloadsDir.exists()) downloadsDir.mkdirs()
+            val file = java.io.File(downloadsDir, fileName)
+            java.io.FileOutputStream(file).use { stream ->
+                stream.write(content.toByteArray())
+            }
+            savedSuccessfully = true
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+
+    if (savedSuccessfully) {
+        Toast.makeText(context, "📥 Customers Text Summary downloaded to Downloads:\n$fileName", Toast.LENGTH_LONG).show()
+    } else {
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        val clip = ClipData.newPlainText("All Customers Report", content)
+        clipboard.setPrimaryClip(clip)
+        Toast.makeText(context, "📥 Customers Report copied to Clipboard!", Toast.LENGTH_LONG).show()
+    }
+
+    shareStatement(context, "$shopName Master Report", content)
 }
 
 // Android Intent Share Trigger helper
@@ -1297,14 +1824,16 @@ fun getLocalizedBillTemplate(
                 if (isCleared) {
                     """
                     Hi $customerName,
-                    This is to confirm that pending balance of ₹$formattedAmount in the account at $shopName have been cleared.
+
+                    This is to confirm that the wholesale balance of ₹$formattedAmount at $shopName is FULLY PAID & SETTLED. ✅
 
                     Thank you for your support!
                     """.trimIndent()
                 } else {
                     """
                     Hi $customerName,
-                    This is to confirm that my pending balance to you is ₹$formattedAmount for the account at $shopName.
+
+                    This is to confirm that my pending wholesale balance to you is ₹$formattedAmount for the account at $shopName.
 
                     I will clear this amount soon.
 
@@ -1315,16 +1844,18 @@ fun getLocalizedBillTemplate(
                 if (isCleared) {
                     """
                     Hi $customerName,
-                    the pending balance of ₹$formattedAmount at $shopName.
-                    have been cleared.
-                    Thank you!
+
+                    Your bill of ₹$formattedAmount at $shopName is FULLY PAID & SETTLED. ✅
+
+                    Thank you for your prompt payment!
                     """.trimIndent()
                 } else {
                     """
                     Hi $customerName,
-                    You have a pending balance of ₹$formattedAmount at $shopName.
 
-                    Please clear this due amount as soon as possible.
+                    You have a pending bill of ₹$formattedAmount at $shopName.
+
+                    Please clear this due amount as soon as possible via UPI or cash.
 
                     Thank you!
                     """.trimIndent()
@@ -1337,14 +1868,16 @@ fun getLocalizedBillTemplate(
                 if (isCleared) {
                     """
                     नमस्ते $customerName,
-                    यह पुष्टि करने के लिए है कि $shopName के खाते का ₹$formattedAmount का बकाया चुका दिया गया है।
+
+                    यह पुष्टि की जाती है कि $shopName के खाते का ₹$formattedAmount का थोक बकाया पूरी तरह से चुका (PAID) दिया गया है। ✅
 
                     आपके सहयोग के लिए धन्यवाद!
                     """.trimIndent()
                 } else {
                     """
                     नमस्ते $customerName,
-                    यह पुष्टि करने के लिए है कि $shopName के खाते के लिए मेरा आपके प्रति बकाया ₹$formattedAmount है।
+
+                    यह पुष्टि करने के लिए है कि $shopName के खाते का मेरा आपके प्रति बकाया ₹$formattedAmount है।
 
                     मैं जल्द ही इस राशि का भुगतान कर दूँगा।
 
@@ -1355,14 +1888,16 @@ fun getLocalizedBillTemplate(
                 if (isCleared) {
                     """
                     नमस्ते $customerName,
-                    $shopName पर ₹$formattedAmount का आपका बकाया पूरा चुका दिया गया है।
 
-                    धन्यवाद!
+                    $shopName पर आपका ₹$formattedAmount का बिल पूरी तरह चुका दिया गया है (PAID)। ✅
+
+                    समय पर भुगतान के लिए धन्यवाद!
                     """.trimIndent()
                 } else {
                     """
                     नमस्ते $customerName,
-                    आपका $shopName पर ₹$formattedAmount का बकाया है।
+
+                    आपका $shopName पर ₹$formattedAmount का बिल बकाया (PENDING) है।
 
                     कृपया जल्द से जल्द इस बकाया राशि का भुगतान करें।
 
@@ -1377,13 +1912,15 @@ fun getLocalizedBillTemplate(
                 if (isCleared) {
                     """
                     নমস্কার $customerName,
-                    এটি নিশ্চিত করার জন্য যে $shopName-এর অ্যাকাউন্টের ₹$formattedAmount টাকার বকেয়া মিটিয়ে দেওয়া হয়েছে।
+
+                    এটি নিশ্চিত করার জন্য যে $shopName-এর অ্যাকাউন্টের ₹$formattedAmount টাকার পাইকারি বকেয়া সম্পূর্ণ মিটিয়ে দেওয়া হয়েছে (PAID)। ✅
 
                     আপনার সহযোগিতার জন্য ধন্যবাদ!
                     """.trimIndent()
                 } else {
                     """
                     নমস্কার $customerName,
+
                     এটি নিশ্চিত করার জন্য যে $shopName-এর অ্যাকাউন্টের জন্য আপনার কাছে আমার ₹$formattedAmount টাকা বকেয়া রয়েছে।
 
                     আমি শীঘ্রই এই টাকাটি মিটিয়ে দেব।
@@ -1395,14 +1932,16 @@ fun getLocalizedBillTemplate(
                 if (isCleared) {
                     """
                     নমস্কার $customerName,
-                    $shopName-এ আপনার ₹$formattedAmount টাকার বকেয়া সম্পূর্ণ মিটিয়ে দেওয়া হয়েছে।
+
+                    $shopName-এ আপনার ₹$formattedAmount টাকার বিল সম্পূর্ণ মিটিয়ে দেওয়া হয়েছে (PAID)। ✅
 
                     ধন্যবাদ!
                     """.trimIndent()
                 } else {
                     """
                     নমস্কার $customerName,
-                    $shopName-এ আপনার ₹$formattedAmount টাকা বাকি আছে।
+
+                    $shopName-এ আপনার ₹$formattedAmount টাকার বিল বকেয়া (PENDING) আছে।
 
                     দয়া করে এই বকেয়া টাকাটি যত তাড়াতাড়ি সম্ভব মিটিয়ে দিন।
 
@@ -1462,38 +2001,60 @@ fun SendBillDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(20.dp),
             color = surfaceColor,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(vertical = 12.dp),
             border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor)
         ) {
             Column(
                 modifier = Modifier
-                    .padding(18.dp)
+                    .padding(20.dp)
                     .verticalScroll(rememberScrollState())
             ) {
-                Text(
-                    text = "✉️ Send Multilingual Bill",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
-                    color = textMain
-                )
-                Spacer(modifier = Modifier.height(12.dp))
+                // Header
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "✉️ Send Bill Statement",
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 18.sp,
+                            color = textMain
+                        )
+                        Text(
+                            text = "Recipient: ${contact.name}",
+                            fontSize = 12.sp,
+                            color = themeColor,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = textSecondary)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
 
                 // Language selection chips
                 Text(
-                    text = "Select Message Language",
-                    fontSize = 11.sp,
+                    text = "Select Language",
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = textSecondary
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     BillLanguage.values().forEach { lang ->
                         val isSelected = selectedLanguage == lang
@@ -1501,7 +2062,7 @@ fun SendBillDialog(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(
-                                    if (isSelected) themeColor.copy(alpha = 0.15f)
+                                    if (isSelected) themeColor.copy(alpha = 0.18f)
                                     else if (isDark) Color(0xFF2E2A36) else Color(0xFFF3EDF7)
                                 )
                                 .border(
@@ -1510,11 +2071,11 @@ fun SendBillDialog(
                                     shape = RoundedCornerShape(12.dp)
                                 )
                                 .clickable { selectedLanguage = lang }
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
                         ) {
                             Text(
                                 text = "${lang.flag} ${lang.displayName}",
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (isSelected) themeColor else textSecondary
                             )
@@ -1526,25 +2087,25 @@ fun SendBillDialog(
 
                 // Status Type Selection
                 Text(
-                    text = "Select Statement Type",
-                    fontSize = 11.sp,
+                    text = "Statement Mode",
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = textSecondary
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     listOf(false, true).forEach { cleared ->
-                        val label = if (cleared) "Paid / Cleared ✅" else "Pending Balance ⏳"
+                        val label = if (cleared) "Paid / Cleared ✅" else "Pending Due ⏳"
                         val isSelected = isCleared == cleared
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(
-                                    if (isSelected) themeColor.copy(alpha = 0.15f)
+                                    if (isSelected) themeColor.copy(alpha = 0.18f)
                                     else if (isDark) Color(0xFF2E2A36) else Color(0xFFF3EDF7)
                                 )
                                 .border(
@@ -1553,12 +2114,12 @@ fun SendBillDialog(
                                     shape = RoundedCornerShape(12.dp)
                                 )
                                 .clickable { isCleared = cleared }
-                                .padding(vertical = 8.dp),
+                                .padding(vertical = 10.dp),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
                                 text = label,
-                                fontSize = 11.sp,
+                                fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (isSelected) themeColor else textSecondary
                             )
@@ -1572,27 +2133,29 @@ fun SendBillDialog(
                 OutlinedTextField(
                     value = shopName,
                     onValueChange = { shopName = it },
-                    label = { Text("Shop / App Name") },
+                    label = { Text("Shop / Business Name") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedTextColor = textMain,
                         unfocusedTextColor = textMain,
                         focusedLabelColor = themeColor,
+                        unfocusedLabelColor = textSecondary,
                         focusedBorderColor = themeColor,
                         unfocusedBorderColor = borderFieldColor,
                         focusedContainerColor = inputBg,
-                        unfocusedContainerColor = inputBg
+                        unfocusedContainerColor = inputBg,
+                        cursorColor = themeColor
                     )
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // Input field: Bill Amount
                 OutlinedTextField(
                     value = customAmount,
                     onValueChange = { customAmount = it },
-                    label = { Text("Bill Amount (₹)") },
+                    label = { Text("Amount (₹)") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
@@ -1600,10 +2163,12 @@ fun SendBillDialog(
                         focusedTextColor = textMain,
                         unfocusedTextColor = textMain,
                         focusedLabelColor = themeColor,
+                        unfocusedLabelColor = textSecondary,
                         focusedBorderColor = themeColor,
                         unfocusedBorderColor = borderFieldColor,
                         focusedContainerColor = inputBg,
-                        unfocusedContainerColor = inputBg
+                        unfocusedContainerColor = inputBg,
+                        cursorColor = themeColor
                     )
                 )
 
@@ -1612,27 +2177,27 @@ fun SendBillDialog(
                 // Message Preview
                 Text(
                     text = "Message Preview",
-                    fontSize = 11.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = textSecondary
                 )
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(previewBg, RoundedCornerShape(8.dp))
-                        .border(1.dp, borderStrokeColor, RoundedCornerShape(8.dp))
-                        .padding(12.dp)
+                        .background(previewBg, RoundedCornerShape(12.dp))
+                        .border(1.dp, borderStrokeColor, RoundedCornerShape(12.dp))
+                        .padding(14.dp)
                 ) {
                     Text(
                         text = finalMessage,
-                        fontSize = 12.sp,
+                        fontSize = 13.sp,
                         color = textMain,
-                        lineHeight = 16.sp
+                        lineHeight = 18.sp
                     )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1642,24 +2207,28 @@ fun SendBillDialog(
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Cancel", color = textSecondary)
+                        Text("Cancel", color = textSecondary, fontWeight = FontWeight.SemiBold)
                     }
                     Button(
                         onClick = { onCopy(finalMessage) },
-                        colors = ButtonDefaults.buttonColors(containerColor = surfaceColor, contentColor = themeColor),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, themeColor),
-                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = previewBg, contentColor = themeColor),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, themeColor.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.weight(1.2f)
                     ) {
-                        Text("Copy", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Copy", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                     Button(
                         onClick = { onShare(finalMessage) },
                         colors = ButtonDefaults.buttonColors(containerColor = themeColor, contentColor = Color.White),
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.weight(1.5f)
                     ) {
-                        Text("Send / Share", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Send / Share", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
             }
@@ -1669,86 +2238,102 @@ fun SendBillDialog(
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun KhataSettingsDialog(
+fun KhataSettingsScreen(
     viewModel: TodoViewModel,
     theme: TaskCardTheme,
-    onDismiss: () -> Unit
+    onBack: () -> Unit
 ) {
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("khatabook_prefs", android.content.Context.MODE_PRIVATE) }
-    var defaultShopName by remember { mutableStateOf(prefs.getString("default_shop_name", "KhataIndex") ?: "KhataIndex") }
+    val clipboardManager = LocalClipboardManager.current
+    val prefs = remember { context.getSharedPreferences("khatabook_prefs", Context.MODE_PRIVATE) }
+
+    var shopName by remember { mutableStateOf(prefs.getString("default_shop_name", "KhataIndex") ?: "KhataIndex") }
+    var shopPhone by remember { mutableStateOf(prefs.getString("shop_phone", "") ?: "") }
+    var shopUpi by remember { mutableStateOf(prefs.getString("shop_upi_id", "") ?: "") }
+
+    var currencySymbol by remember { mutableStateOf(prefs.getString("currency_symbol", "₹") ?: "₹") }
+    var showDecimals by remember { mutableStateOf(prefs.getBoolean("show_decimals", true)) }
+
     var defaultLangStr by remember { mutableStateOf(prefs.getString("default_lang", "ENGLISH") ?: "ENGLISH") }
+    var billTagline by remember { mutableStateOf(prefs.getString("bill_tagline", "Thank you for doing business with us!") ?: "Thank you for doing business with us!") }
+
+    var showLedgerSummary by remember { mutableStateOf(prefs.getBoolean("show_ledger_summary", true)) }
+
     var showConfirmClear by remember { mutableStateOf(false) }
 
     val themeColor = theme.primary()
-
     val isDark = LocalIsDark.current
-    val surfaceColor = if (isDark) Color(0xFF1D1B22) else Color.White
+
+    val surfaceColor = if (isDark) Color(0xFF141218) else Color(0xFFFEF7FF)
+    val cardBg = if (isDark) Color(0xFF1D1B22) else Color(0xFFFFFFFF)
     val textMain = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
     val textSecondary = if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F)
-    val inputBg = if (isDark) Color(0xFF2E2A36) else Color(0xFFF9F9FA)
-    val cardBg = if (isDark) Color(0xFF25232A) else Color(0xFFF3F2F5)
-    val borderStrokeColor = if (isDark) Color(0xFF49454F) else Color.LightGray.copy(alpha = 0.5f)
-    val borderFieldColor = if (isDark) Color(0xFF49454F) else Color(0xFF79747E)
+    val inputBg = if (isDark) Color(0xFF2E2A3A) else Color.White
+    val borderStrokeColor = (if (isDark) Color(0xFF49454F) else Color(0xFFCAC4D0)).copy(alpha = 0.4f)
 
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = surfaceColor,
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = surfaceColor
+    ) {
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor)
+                .fillMaxSize()
+                .statusBarsPadding()
         ) {
+            // Top Navigation Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = onBack,
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(themeColor.copy(alpha = 0.12f))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "Back to Ledger",
+                        tint = themeColor,
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "Khata Ledger Settings",
+                        color = textMain,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Text(
+                        text = "Configure store profile, currency, WhatsApp messaging & reports",
+                        color = textSecondary,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
             Column(
                 modifier = Modifier
-                    .padding(24.dp)
+                    .fillMaxSize()
                     .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                // Header
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(themeColor.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = null,
-                                tint = themeColor,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "Ledger Settings",
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 18.sp,
-                            color = textMain
-                        )
-                    }
-                    IconButton(onClick = onDismiss) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = textSecondary)
-                    }
-                }
-                
-                Spacer(modifier = Modifier.height(20.dp))
 
-                // Section 1: Shop Profile Info
+                // Section 1: Shop & Business Profile
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(containerColor = cardBg),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor.copy(alpha = 0.5f))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor.copy(alpha = 0.4f))
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column(modifier = Modifier.padding(14.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 imageVector = Icons.Default.Store,
@@ -1758,7 +2343,7 @@ fun KhataSettingsDialog(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "Shop Identity",
+                                text = "Shop & Contact Identity",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = themeColor
@@ -1766,12 +2351,12 @@ fun KhataSettingsDialog(
                         }
                         Spacer(modifier = Modifier.height(10.dp))
                         OutlinedTextField(
-                            value = defaultShopName,
-                            onValueChange = { 
-                                defaultShopName = it
+                            value = shopName,
+                            onValueChange = {
+                                shopName = it
                                 prefs.edit().putString("default_shop_name", it).apply()
                             },
-                            placeholder = { Text("e.g. Roy's Store", fontSize = 13.sp) },
+                            label = { Text("Shop / Business Name", fontSize = 12.sp) },
                             singleLine = true,
                             textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
                             modifier = Modifier.fillMaxWidth(),
@@ -1779,10 +2364,59 @@ fun KhataSettingsDialog(
                                 focusedTextColor = textMain,
                                 unfocusedTextColor = textMain,
                                 focusedLabelColor = themeColor,
+                                unfocusedLabelColor = textSecondary,
                                 focusedBorderColor = themeColor,
-                                unfocusedBorderColor = borderFieldColor.copy(alpha = 0.5f),
+                                unfocusedBorderColor = borderStrokeColor,
                                 focusedContainerColor = inputBg,
-                                unfocusedContainerColor = inputBg
+                                unfocusedContainerColor = inputBg,
+                                cursorColor = themeColor
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = shopPhone,
+                            onValueChange = {
+                                shopPhone = it
+                                prefs.edit().putString("shop_phone", it).apply()
+                            },
+                            label = { Text("Store Owner Phone (Optional)", fontSize = 12.sp) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                            singleLine = true,
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = textMain,
+                                unfocusedTextColor = textMain,
+                                focusedLabelColor = themeColor,
+                                unfocusedLabelColor = textSecondary,
+                                focusedBorderColor = themeColor,
+                                unfocusedBorderColor = borderStrokeColor,
+                                focusedContainerColor = inputBg,
+                                unfocusedContainerColor = inputBg,
+                                cursorColor = themeColor
+                            )
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = shopUpi,
+                            onValueChange = {
+                                shopUpi = it
+                                prefs.edit().putString("shop_upi_id", it).apply()
+                            },
+                            label = { Text("Shop UPI Payment Handle (e.g. store@upi)", fontSize = 12.sp) },
+                            singleLine = true,
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = textMain,
+                                unfocusedTextColor = textMain,
+                                focusedLabelColor = themeColor,
+                                unfocusedLabelColor = textSecondary,
+                                focusedBorderColor = themeColor,
+                                unfocusedBorderColor = borderStrokeColor,
+                                focusedContainerColor = inputBg,
+                                unfocusedContainerColor = inputBg,
+                                cursorColor = themeColor
                             )
                         )
                     }
@@ -1790,14 +2424,113 @@ fun KhataSettingsDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Section 2: Localization Preferences
+                // Section 2: Currency & Formatting
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(containerColor = cardBg),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor.copy(alpha = 0.5f))
+                    border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor.copy(alpha = 0.4f))
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Payments,
+                                contentDescription = null,
+                                tint = themeColor,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Currency & Display Precision",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = themeColor
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "Select Currency Symbol",
+                            fontSize = 11.sp,
+                            color = textSecondary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        val currencies = listOf("₹", "$", "€", "£", "৳", "¥", "AED", "SAR")
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            currencies.forEach { symbol ->
+                                val isSelected = currencySymbol == symbol
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(
+                                            if (isSelected) themeColor.copy(alpha = 0.25f)
+                                            else if (isDark) Color(0xFF2E2A3A) else Color.White
+                                        )
+                                        .border(
+                                            width = 1.dp,
+                                            color = if (isSelected) themeColor else borderStrokeColor.copy(alpha = 0.3f),
+                                            shape = RoundedCornerShape(10.dp)
+                                        )
+                                        .clickable {
+                                            currencySymbol = symbol
+                                            prefs.edit().putString("currency_symbol", symbol).apply()
+                                        }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                ) {
+                                    Text(
+                                        text = symbol,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = if (isSelected) themeColor else textSecondary
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Show Decimal Amounts (.00)",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = textMain
+                                )
+                                Text(
+                                    text = "Display paise or cents accuracy",
+                                    fontSize = 10.sp,
+                                    color = textSecondary
+                                )
+                            }
+                            Switch(
+                                checked = showDecimals,
+                                onCheckedChange = {
+                                    showDecimals = it
+                                    prefs.edit().putBoolean("show_decimals", it).apply()
+                                },
+                                colors = SwitchDefaults.colors(checkedThumbColor = themeColor)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Section 3: WhatsApp Invoicing & Multilingual Messaging
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = cardBg),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor.copy(alpha = 0.4f))
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 imageVector = Icons.Default.Language,
@@ -1807,13 +2540,19 @@ fun KhataSettingsDialog(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "Default Messaging Language",
+                                text = "WhatsApp Invoicing & Tagline",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = themeColor
                             )
                         }
                         Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "Default Messaging Language",
+                            fontSize = 11.sp,
+                            color = textSecondary
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
                         FlowRow(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -1825,15 +2564,15 @@ fun KhataSettingsDialog(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(10.dp))
                                         .background(
-                                            if (isSelected) themeColor.copy(alpha = 0.2f)
-                                            else if (isDark) Color(0xFF2E2A36) else Color.White
+                                            if (isSelected) themeColor.copy(alpha = 0.25f)
+                                            else if (isDark) Color(0xFF2E2A3A) else Color.White
                                         )
                                         .border(
                                             width = 1.dp,
                                             color = if (isSelected) themeColor else borderStrokeColor.copy(alpha = 0.3f),
                                             shape = RoundedCornerShape(10.dp)
                                         )
-                                        .clickable { 
+                                        .clickable {
                                             defaultLangStr = lang.name
                                             prefs.edit().putString("default_lang", lang.name).apply()
                                         }
@@ -1848,15 +2587,191 @@ fun KhataSettingsDialog(
                                 }
                             }
                         }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+                        OutlinedTextField(
+                            value = billTagline,
+                            onValueChange = {
+                                billTagline = it
+                                prefs.edit().putString("bill_tagline", it).apply()
+                            },
+                            label = { Text("Bill Footer Tagline", fontSize = 12.sp) },
+                            singleLine = true,
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = textMain,
+                                unfocusedTextColor = textMain,
+                                focusedLabelColor = themeColor,
+                                unfocusedLabelColor = textSecondary,
+                                focusedBorderColor = themeColor,
+                                unfocusedBorderColor = borderStrokeColor,
+                                focusedContainerColor = inputBg,
+                                unfocusedContainerColor = inputBg,
+                                cursorColor = themeColor
+                            )
+                        )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Section 3: Danger Zone
+                // Section 4: DASHBOARD DISPLAY PREFERENCES
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = cardBg),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Dashboard Net Position Header",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = textMain
+                                )
+                                Text(
+                                    text = "Show overall ledger summary card at top of dashboard",
+                                    fontSize = 11.sp,
+                                    color = textSecondary
+                                )
+                            }
+                            Switch(
+                                checked = showLedgerSummary,
+                                onCheckedChange = {
+                                    showLedgerSummary = it
+                                    prefs.edit().putBoolean("show_ledger_summary", it).apply()
+                                },
+                                colors = SwitchDefaults.colors(checkedThumbColor = themeColor)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Section 5: Data Export & Reset Data
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = cardBg),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor.copy(alpha = 0.4f))
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = null,
+                                tint = themeColor,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Export & Data Management",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = themeColor
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Button 1: Download All Customers CSV
+                        Button(
+                            onClick = {
+                                val allContacts = viewModel.khataCustomers.value + viewModel.khataSellers.value
+                                val allTx = viewModel.allKhataTransactions.value
+                                downloadAllCustomersCsv(context, allContacts, allTx)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = themeColor),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Download All Customers Info (CSV File)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Button 2: Download All Customers Text Info
+                        OutlinedButton(
+                            onClick = {
+                                val allContacts = viewModel.khataCustomers.value + viewModel.khataSellers.value
+                                val allTx = viewModel.allKhataTransactions.value
+                                downloadAllCustomersTextReport(context, allContacts, allTx)
+                            },
+                            border = androidx.compose.foundation.BorderStroke(1.dp, themeColor),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = themeColor),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(16.dp), tint = themeColor)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Download All Customers Info (Text File)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Button 3: Share Full Text Statement
+                        OutlinedButton(
+                            onClick = {
+                                val sellersList = viewModel.khataSellers.value
+                                val customersList = viewModel.khataCustomers.value
+                                val txList = viewModel.allKhataTransactions.value
+
+                                val summaryBuilder = StringBuilder()
+                                summaryBuilder.append("==============================\n")
+                                summaryBuilder.append("    $shopName FULL LEDGER REPORT\n")
+                                summaryBuilder.append("==============================\n")
+                                summaryBuilder.append("Date: ${SimpleDateFormat("dd-MMM-yyyy hh:mm a", Locale.getDefault()).format(Date())}\n\n")
+
+                                summaryBuilder.append("🏢 WHOLESALERS (${sellersList.size}):\n")
+                                sellersList.forEach { s ->
+                                    val ctx = txList.filter { it.contactId == s.id }
+                                    val owe = ctx.filter { it.type == "WE_OWE" }.sumOf { it.amount }
+                                    val paid = ctx.filter { it.type == "WE_PAID" }.sumOf { it.amount }
+                                    summaryBuilder.append("- ${s.name}: We Owe ${formatKhataCurrency(owe - paid, context)}\n")
+                                }
+
+                                summaryBuilder.append("\n🛍️ CUSTOMERS (${customersList.size}):\n")
+                                customersList.forEach { c ->
+                                    val ctx = txList.filter { it.contactId == c.id }
+                                    val owe = ctx.filter { it.type == "THEY_OWE" }.sumOf { it.amount }
+                                    val paid = ctx.filter { it.type == "THEY_PAID" }.sumOf { it.amount }
+                                    summaryBuilder.append("- ${c.name}: They Owe ${formatKhataCurrency(owe - paid, context)}\n")
+                                }
+
+                                summaryBuilder.append("\n==============================\n")
+                                summaryBuilder.append("$billTagline\n")
+
+                                val textReport = summaryBuilder.toString()
+                                clipboardManager.setText(AnnotatedString(textReport))
+                                shareStatement(context, shopName, textReport)
+                            },
+                            border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = textMain),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(16.dp), tint = textMain)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Share & Copy Full Ledger Summary", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = textMain)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Section 6: Danger Zone
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = if (isDark) Color(0xFF2D1717) else Color(0xFFFFF5F5)
                     ),
@@ -1865,7 +2780,7 @@ fun KhataSettingsDialog(
                         if (isDark) Color(0xFF5E2B2B) else Color(0xFFFFCCCC)
                     )
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
+                    Column(modifier = Modifier.padding(14.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
                                 imageVector = Icons.Default.Warning,
@@ -1883,12 +2798,12 @@ fun KhataSettingsDialog(
                         }
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "Clearing the ledger book clears all customers, wholesalers, and transactions forever.",
+                            text = "Resetting clears all customer entries, wholesalers, and ledger logs permanently.",
                             fontSize = 10.sp,
                             color = if (isDark) Color(0xFFCAC4D0) else Color(0xFF665555),
                             lineHeight = 14.sp
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
                         if (!showConfirmClear) {
                             Button(
@@ -1959,15 +2874,16 @@ fun KhataSettingsDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(20.dp))
                 Button(
-                    onClick = onDismiss,
+                    onClick = onBack,
                     colors = ButtonDefaults.buttonColors(containerColor = themeColor),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Save & Close Settings", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                    Text("Save & Back to Dashboard", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
                 }
+                Spacer(modifier = Modifier.height(32.dp))
             }
         }
     }
