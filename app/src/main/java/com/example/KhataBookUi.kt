@@ -5,10 +5,19 @@ import android.content.Intent
 import android.content.ContentValues
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
@@ -196,6 +205,14 @@ fun KhataBookDashboard(
             val showLedgerSummary = remember { prefs.getBoolean("show_ledger_summary", true) }
             val shopName = remember { prefs.getString("default_shop_name", "KhataIndex") ?: "KhataIndex" }
 
+            val mainFilePickerLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.GetContent()
+            ) { uri: Uri? ->
+                uri?.let {
+                    importCustomersFromFile(context, it, viewModel, if (selectedTab == 0) "SELLER" else "CUSTOMER")
+                }
+            }
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -352,7 +369,7 @@ fun KhataBookDashboard(
                     }
                 }
 
-                // Section title and Download CSV Action button
+                // Section title and Action buttons (Upload / Download)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -361,39 +378,70 @@ fun KhataBookDashboard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (selectedTab == 0) "Wholesaler Accounts" else "Customer Accounts",
+                        text = if (selectedTab == 0) "Wholesalers" else "Customers",
                         fontWeight = FontWeight.ExtraBold,
                         fontSize = 14.sp,
                         color = if (LocalIsDark.current) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
                     )
                     
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(themeColor.copy(alpha = 0.12f))
-                            .clickable {
-                                downloadAllCustomersCsv(
-                                    context,
-                                    if (selectedTab == 0) sellers else customers,
-                                    allTransactions
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        // Upload CSV / TXT button
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(themeColor.copy(alpha = 0.15f))
+                                .border(1.dp, themeColor.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                                .clickable {
+                                    mainFilePickerLauncher.launch("*/*")
+                                }
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Upload,
+                                    contentDescription = "Upload CSV / TXT",
+                                    tint = themeColor,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Upload",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = themeColor
                                 )
                             }
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Download,
-                                contentDescription = "Download CSV",
-                                tint = themeColor,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "Download CSV",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = themeColor
-                            )
+                        }
+
+                        // Download CSV button
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(themeColor.copy(alpha = 0.12f))
+                                .clickable {
+                                    downloadAllCustomersCsv(
+                                        context,
+                                        if (selectedTab == 0) sellers else customers,
+                                        allTransactions
+                                    )
+                                }
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Download,
+                                    contentDescription = "Download CSV",
+                                    tint = themeColor,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Export CSV",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = themeColor
+                                )
+                            }
                         }
                     }
                 }
@@ -858,14 +906,6 @@ fun ContactDetailsScreen(
                     color = themeColor
                 )
             }
-            // Download contact info action
-            IconButton(
-                onClick = {
-                    downloadCustomerInfoFile(context, contact, transactions, balance)
-                }
-            ) {
-                Icon(Icons.Default.Download, contentDescription = "Download Customer Info", tint = themeColor)
-            }
             // Delete contact action
             IconButton(
                 onClick = {
@@ -882,7 +922,7 @@ fun ContactDetailsScreen(
         GlassCardContainer(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp),
+                .padding(vertical = 6.dp),
             themeColor = themeColor
         ) {
             Column(
@@ -902,12 +942,12 @@ fun ContactDetailsScreen(
                     fontSize = 28.sp,
                     color = if (balance > 0) Color(0xFFD32F2F) else Color(0xFF388E3C)
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // Send Bill, Copy & Download ledger text row
+                // Send Bill & Copy Statement row
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     OutlinedButton(
                         onClick = {
@@ -921,7 +961,7 @@ fun ContactDetailsScreen(
                     ) {
                         Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Copy", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("Copy Statement", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
 
                     Button(
@@ -930,29 +970,122 @@ fun ContactDetailsScreen(
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = themeColor, contentColor = Color.White),
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1.1f),
+                        modifier = Modifier.weight(1f),
                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
                     ) {
                         Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Send Bill", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                     }
+                }
+            }
+        }
 
-                    Button(
-                        onClick = {
-                            downloadCustomerInfoFile(context, contact, transactions, balance)
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (LocalIsDark.current) Color(0xFF2E2A3A) else Color(0xFFF3EDF7),
-                            contentColor = themeColor
-                        ),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1.3f),
-                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
-                    ) {
-                        Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Download Info", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // Paid / Payment Progress Graph Card
+        val totalCredit = remember(transactions) {
+            if (contact.type == "SELLER") {
+                transactions.filter { it.type == "WE_OWE" }.sumOf { it.amount }
+            } else {
+                transactions.filter { it.type == "THEY_OWE" }.sumOf { it.amount }
+            }
+        }
+        val totalPaid = remember(transactions) {
+            if (contact.type == "SELLER") {
+                transactions.filter { it.type == "WE_PAID" }.sumOf { it.amount }
+            } else {
+                transactions.filter { it.type == "THEY_PAID" }.sumOf { it.amount }
+            }
+        }
+        val paidRatio = if (totalCredit > 0) (totalPaid / totalCredit).coerceIn(0.0, 1.0).toFloat()
+        else if (totalPaid > 0) 1.0f
+        else 0.0f
+        val paidPct = (paidRatio * 100).toInt()
+
+        GlassCardContainer(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            themeColor = themeColor
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Analytics,
+                            contentDescription = null,
+                            tint = themeColor,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Payment Settlement Graph",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (LocalIsDark.current) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
+                        )
+                    }
+                    Text(
+                        text = if (paidRatio >= 1.0f && totalCredit > 0) "100% Fully Cleared ✅" else "$paidPct% Paid",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = if (paidRatio >= 1.0f) Color(0xFF388E3C) else themeColor
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Progress graph bar
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(10.dp)
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(if (LocalIsDark.current) Color(0xFF2E2A36) else Color.LightGray.copy(alpha = 0.35f))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxHeight()
+                            .fillMaxWidth(fraction = paidRatio)
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        Color(0xFF388E3C),
+                                        Color(0xFF81C784)
+                                    )
+                                )
+                            )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text("TOTAL CREDIT / SALES", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                        Text(formatKhataCurrency(totalCredit, context), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFD32F2F))
+                    }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("TOTAL PAID RECEIVED", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                        Text(formatKhataCurrency(totalPaid, context), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF388E3C))
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("REMAINING DUES", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                        Text(
+                            formatKhataCurrency(balance, context),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (balance <= 0) Color(0xFF388E3C) else Color(0xFFD32F2F)
+                        )
                     }
                 }
             }
@@ -1239,9 +1372,9 @@ fun TransactionItemRow(
 
         Card(
             modifier = Modifier.weight(1f),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = if (LocalIsDark.current) Color(0xFF211D2A) else Color.White),
             shape = RoundedCornerShape(10.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.25f))
+            border = androidx.compose.foundation.BorderStroke(1.dp, if (LocalIsDark.current) Color(0xFF49454F) else Color.LightGray.copy(alpha = 0.25f))
         ) {
             Row(
                 modifier = Modifier
@@ -1571,6 +1704,101 @@ fun buildCustomerReportText(
     return sb.toString()
 }
 
+fun importCustomersFromFile(
+    context: Context,
+    uri: Uri,
+    viewModel: TodoViewModel,
+    defaultType: String = "CUSTOMER"
+) {
+    val coroutineScope = CoroutineScope(Dispatchers.IO)
+    coroutineScope.launch {
+        try {
+            val inputStream = context.contentResolver.openInputStream(uri) ?: return@launch
+            val reader = BufferedReader(InputStreamReader(inputStream))
+            var lineCount = 0
+            var addedCount = 0
+
+            val lines = reader.readLines()
+            for (rawLine in lines) {
+                val line = rawLine.trim()
+                lineCount++
+                if (line.isBlank()) continue
+
+                val columns = line.split(",", "\t", ";", "|").map { it.trim().removeSurrounding("\"") }
+                
+                // Skip header line
+                if (lineCount == 1 && (columns.firstOrNull()?.equals("ID", ignoreCase = true) == true ||
+                            columns.firstOrNull()?.contains("Name", ignoreCase = true) == true ||
+                            columns.firstOrNull()?.contains("Customer", ignoreCase = true) == true)) {
+                    continue
+                }
+
+                if (columns.isNotEmpty()) {
+                    var name = ""
+                    var phone = ""
+                    var type = defaultType
+                    var creditAmount = 0.0
+                    var paidAmount = 0.0
+
+                    if (columns.size == 1) {
+                        name = columns[0]
+                    } else if (columns.size >= 2) {
+                        if (columns[0].toIntOrNull() != null && columns.size >= 3) {
+                            name = columns[1]
+                            phone = columns[2]
+                            if (columns.size >= 4 && (columns[3].equals("SELLER", true) || columns[3].equals("CUSTOMER", true))) {
+                                type = columns[3].uppercase()
+                            }
+                            if (columns.size >= 5) creditAmount = columns[4].toDoubleOrNull() ?: 0.0
+                            if (columns.size >= 6) paidAmount = columns[5].toDoubleOrNull() ?: 0.0
+                        } else {
+                            name = columns[0]
+                            phone = columns[1]
+                            if (columns.size >= 3 && (columns[2].equals("SELLER", true) || columns[2].equals("CUSTOMER", true))) {
+                                type = columns[2].uppercase()
+                            } else if (columns.size >= 3) {
+                                creditAmount = columns[2].toDoubleOrNull() ?: 0.0
+                            }
+                            if (columns.size >= 4 && creditAmount == 0.0) {
+                                creditAmount = columns[3].toDoubleOrNull() ?: 0.0
+                            }
+                            if (columns.size >= 5) {
+                                paidAmount = columns[4].toDoubleOrNull() ?: 0.0
+                            }
+                        }
+                    }
+
+                    if (name.isNotBlank()) {
+                        val contactId = viewModel.addKhataContactAndGetId(name, phone, type).toInt()
+                        if (creditAmount > 0) {
+                            val txType = if (type == "SELLER") "WE_OWE" else "THEY_OWE"
+                            viewModel.addKhataTransaction(contactId, "Imported Balance", creditAmount, txType)
+                        }
+                        if (paidAmount > 0) {
+                            val txType = if (type == "SELLER") "WE_PAID" else "THEY_PAID"
+                            viewModel.addKhataTransaction(contactId, "Imported Paid Amount", paidAmount, txType)
+                        }
+                        addedCount++
+                    }
+                }
+            }
+
+            withContext(Dispatchers.Main) {
+                if (addedCount > 0) {
+                    Toast.makeText(context, "🎉 Successfully imported $addedCount customer accounts!", Toast.LENGTH_LONG).show()
+                } else {
+                    Toast.makeText(context, "⚠️ No valid customer entries found in file.", Toast.LENGTH_LONG).show()
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "Failed to import file: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+}
+
 fun downloadCustomerInfoFile(
     context: Context,
     contact: KhataContact,
@@ -1614,15 +1842,13 @@ fun downloadCustomerInfoFile(
     }
 
     if (savedSuccessfully) {
-        Toast.makeText(context, "📥 Customer Info downloaded to Downloads folder:\n$fileName", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, "📥 Customer Info saved to Downloads folder:\n$fileName", Toast.LENGTH_LONG).show()
     } else {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clip = ClipData.newPlainText("Customer Info - ${contact.name}", content)
         clipboard.setPrimaryClip(clip)
         Toast.makeText(context, "📥 Customer Info copied to Clipboard!", Toast.LENGTH_LONG).show()
     }
-
-    shareStatement(context, contact.name, content)
 }
 
 fun downloadAllCustomersCsv(
@@ -1690,15 +1916,13 @@ fun downloadAllCustomersCsv(
     }
 
     if (savedSuccessfully) {
-        Toast.makeText(context, "📥 Customers CSV downloaded to Downloads folder:\n$fileName", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, "📥 Customers CSV saved to Downloads folder:\n$fileName", Toast.LENGTH_LONG).show()
     } else {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clip = ClipData.newPlainText("All Customers CSV", content)
         clipboard.setPrimaryClip(clip)
         Toast.makeText(context, "📥 Customers CSV copied to Clipboard!", Toast.LENGTH_LONG).show()
     }
-
-    shareStatement(context, "$shopName Customers Export", content)
 }
 
 fun downloadAllCustomersTextReport(
@@ -1776,15 +2000,13 @@ fun downloadAllCustomersTextReport(
     }
 
     if (savedSuccessfully) {
-        Toast.makeText(context, "📥 Customers Text Summary downloaded to Downloads:\n$fileName", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, "📥 Customers Text Summary saved to Downloads:\n$fileName", Toast.LENGTH_LONG).show()
     } else {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clip = ClipData.newPlainText("All Customers Report", content)
         clipboard.setPrimaryClip(clip)
         Toast.makeText(context, "📥 Customers Report copied to Clipboard!", Toast.LENGTH_LONG).show()
     }
-
-    shareStatement(context, "$shopName Master Report", content)
 }
 
 // Android Intent Share Trigger helper
@@ -2261,6 +2483,14 @@ fun KhataSettingsScreen(
 
     var showConfirmClear by remember { mutableStateOf(false) }
 
+    val settingsFilePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            importCustomersFromFile(context, it, viewModel, "CUSTOMER")
+        }
+    }
+
     val themeColor = theme.primary()
     val isDark = LocalIsDark.current
 
@@ -2680,6 +2910,26 @@ fun KhataSettingsScreen(
                             )
                         }
                         Spacer(modifier = Modifier.height(10.dp))
+
+                        // Button 0: Upload Customers Info (CSV / TXT)
+                        Button(
+                            onClick = {
+                                settingsFilePickerLauncher.launch("*/*")
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = themeColor.copy(alpha = 0.15f),
+                                contentColor = themeColor
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, themeColor),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(16.dp), tint = themeColor)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Upload Customers Info (CSV / TXT File)", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = themeColor)
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         // Button 1: Download All Customers CSV
                         Button(

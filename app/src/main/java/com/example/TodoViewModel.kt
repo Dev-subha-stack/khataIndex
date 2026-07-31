@@ -401,6 +401,10 @@ class TodoViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    suspend fun addKhataContactAndGetId(name: String, phone: String, type: String): Long {
+        return repository.insertContact(KhataContact(name = name, phone = phone, type = type))
+    }
+
     fun deleteKhataContact(contactId: Int) {
         viewModelScope.launch {
             repository.deleteContactById(contactId)
