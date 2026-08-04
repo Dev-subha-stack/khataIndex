@@ -47,7 +47,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.*
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -229,7 +230,7 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
     var showPrivacyPolicyScreen by remember { mutableStateOf(false) }
 
     // Categories list
-    val categories = listOf("All", "Personal", "Work", "Shopping", "Finance", "Wellness")
+    val categories = listOf("All", "Personal", "Work", "Shopping", "Finance")
 
     // Stats calculations
     val totalCount = todos.size
@@ -320,12 +321,17 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
                 }
             }
         ) { innerPadding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .statusBarsPadding()
-                    .padding(bottom = innerPadding.calculateBottomPadding())
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.TopCenter
             ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .widthIn(max = 640.dp)
+                        .statusBarsPadding()
+                        .padding(bottom = innerPadding.calculateBottomPadding())
+                ) {
                 // 1. App Header Title & Settings Trigger Row
                 Row(
                     modifier = Modifier
@@ -1001,6 +1007,7 @@ fun TodoAppScreen(viewModel: TodoViewModel = viewModel()) {
         }
     }
 }
+}
 
 @Composable
 fun TodoCardItem(
@@ -1485,15 +1492,23 @@ fun AddTodoDialog(
     var dueDate by remember { mutableStateOf<Long?>(null) }
     var isCategoryDropdownExpanded by remember { mutableStateOf(false) }
 
-    val categories = listOf("Personal", "Work", "Shopping", "Finance", "Wellness")
+    val categories = listOf("Personal", "Work", "Shopping", "Finance")
     val context = LocalContext.current
     val themePrimary = Color(theme.primaryColor)
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Surface(
             shape = RoundedCornerShape(16.dp),
             color = Color(0xFFFEF7FF),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCAC4D0))
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCAC4D0)),
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .widthIn(max = 520.dp)
+                .wrapContentHeight()
+                .imePadding()
         ) {
             Column(
                 modifier = Modifier
@@ -1679,15 +1694,23 @@ fun EditTodoDialog(
     var dueDate by remember { mutableStateOf<Long?>(todo.dueDate) }
     var isCategoryDropdownExpanded by remember { mutableStateOf(false) }
 
-    val categories = listOf("Personal", "Work", "Shopping", "Finance", "Wellness")
+    val categories = listOf("Personal", "Work", "Shopping", "Finance")
     val context = LocalContext.current
     val themePrimary = Color(theme.primaryColor)
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Surface(
             shape = RoundedCornerShape(16.dp),
             color = Color(0xFFFEF7FF),
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCAC4D0))
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFCAC4D0)),
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .widthIn(max = 520.dp)
+                .wrapContentHeight()
+                .imePadding()
         ) {
             Column(
                 modifier = Modifier
@@ -1890,11 +1913,17 @@ fun SettingsScreen(
         modifier = Modifier.fillMaxSize(),
         color = surfaceColor
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.TopCenter
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .widthIn(max = 640.dp)
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+            ) {
             // Top Bar Header with Back Navigation
             Row(
                 modifier = Modifier
@@ -2361,6 +2390,7 @@ fun SettingsScreen(
             }
         }
     }
+}
 
     // Confirmation dialog for clearing completed tasks
     if (showClearConfirmDialog) {
@@ -2407,12 +2437,18 @@ fun PrivacyPolicyScreen(
         modifier = Modifier.fillMaxSize(),
         color = surfaceBg
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .padding(20.dp)
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.TopCenter
         ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .widthIn(max = 640.dp)
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .padding(20.dp)
+            ) {
             // Header with Close/Back button
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -2527,6 +2563,7 @@ fun PrivacyPolicyScreen(
             }
         }
     }
+}
 }
 
 @Composable

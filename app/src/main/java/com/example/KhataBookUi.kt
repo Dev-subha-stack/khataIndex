@@ -42,6 +42,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -265,63 +266,6 @@ fun KhataBookDashboard(
                                 tint = themeColor,
                                 modifier = Modifier.size(20.dp)
                             )
-                        }
-                    }
-                }
-
-                // Optional Net Ledger Summary Header Card
-                if (showLedgerSummary) {
-                    val totalWeOwe = remember(allTransactions, sellers) {
-                        val sellerIds = sellers.map { it.id }.toSet()
-                        val sellerTx = allTransactions.filter { it.contactId in sellerIds }
-                        val owe = sellerTx.filter { it.type == "WE_OWE" }.sumOf { it.amount }
-                        val paid = sellerTx.filter { it.type == "WE_PAID" }.sumOf { it.amount }
-                        (owe - paid).coerceAtLeast(0.0)
-                    }
-                    val totalTheyOweUs = remember(allTransactions, customers) {
-                        val customerIds = customers.map { it.id }.toSet()
-                        val custTx = allTransactions.filter { it.contactId in customerIds }
-                        val owe = custTx.filter { it.type == "THEY_OWE" }.sumOf { it.amount }
-                        val paid = custTx.filter { it.type == "THEY_PAID" }.sumOf { it.amount }
-                        (owe - paid).coerceAtLeast(0.0)
-                    }
-
-                    GlassCardContainer(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 10.dp),
-                        themeColor = themeColor
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(text = "WE OWE WHOLESALERS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-                                Text(
-                                    text = formatKhataCurrency(totalWeOwe, context),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFF388E3C)
-                                )
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .height(30.dp)
-                                    .width(1.dp)
-                                    .background(Color.Gray.copy(alpha = 0.3f))
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-                                Text(text = "CUSTOMERS OWE US", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-                                Text(
-                                    text = formatKhataCurrency(totalTheyOweUs, context),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = Color(0xFFD32F2F)
-                                )
-                            }
                         }
                     }
                 }
@@ -597,7 +541,7 @@ fun KhataBookDashboard(
                             .weight(1f)
                             .fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
-                        contentPadding = PaddingValues(vertical = 8.dp)
+                        contentPadding = PaddingValues(top = 8.dp, bottom = 140.dp)
                     ) {
                         items(filteredContacts, key = { it.id }) { contact ->
                             // Calculate outstanding balance
@@ -656,70 +600,97 @@ fun ContactLedgerCard(
         onClick = onClick
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Circular Avatar Placeholder with initial letter
+            val initial = contact.name.trim().take(1).ifEmpty { "?" }.uppercase()
             Box(
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
                     .background(
-                        Brush.radialGradient(
+                        Brush.linearGradient(
                             colors = listOf(
                                 themeColor.copy(alpha = 0.35f),
-                                themeColor.copy(alpha = 0.12f)
+                                themeColor.copy(alpha = 0.15f)
                             )
                         )
                     )
-                    .border(1.dp, themeColor.copy(alpha = 0.4f), CircleShape),
+                    .border(1.5.dp, themeColor.copy(alpha = 0.6f), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = contact.name.take(1).uppercase(),
-                    fontWeight = FontWeight.ExtraBold,
-                    fontSize = 17.sp,
-                    color = themeColor
+                    text = initial,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp,
+                    color = if (isDark) Color.White else themeColor
                 )
             }
+
             Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
+
+            // Contact Name & Details
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center
+            ) {
                 Text(
-                    text = contact.name,
+                    text = contact.name.trim().ifBlank { "Unnamed Contact" },
                     fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    color = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20),
-                    maxLines = 1,
+                    fontSize = 16.sp,
+                    lineHeight = 21.sp,
+                    color = if (isDark) Color.White else Color(0xFF1C1B1F),
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
+
                 if (contact.phone.isNotBlank()) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Icon(
                             imageVector = Icons.Default.Phone,
-                            contentDescription = null,
-                            tint = Color.Gray,
-                            modifier = Modifier.size(11.dp)
+                            contentDescription = "Phone Number",
+                            tint = if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F),
+                            modifier = Modifier.size(12.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = contact.phone,
-                            fontSize = 11.sp,
-                            color = Color.Gray
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F),
+                            maxLines = 1
                         )
                     }
                 }
             }
-            Spacer(modifier = Modifier.width(8.dp))
-            Column(horizontalAlignment = Alignment.End) {
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            // Balance Summary
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.Center
+            ) {
                 Text(
                     text = if (contact.type == "SELLER") "We owe them" else "They owe us",
                     fontSize = 10.sp,
-                    color = Color.Gray
+                    fontWeight = FontWeight.Medium,
+                    color = if (isDark) Color(0xFF938F96) else Color(0xFF79747E),
+                    maxLines = 1
                 )
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = formatKhataCurrency(balance, context),
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 15.sp,
-                    color = if (balance > 0) Color(0xFFD32F2F) else Color(0xFF388E3C)
+                    color = if (balance > 0) Color(0xFFD32F2F) else Color(0xFF388E3C),
+                    maxLines = 1
                 )
             }
         }
@@ -746,16 +717,25 @@ fun AddContactDialog(
     val borderStrokeColor = if (isDark) Color(0xFF49454F) else Color.LightGray.copy(alpha = 0.5f)
     val borderFieldColor = if (isDark) Color(0xFF49454F) else Color(0xFF79747E)
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Surface(
             shape = RoundedCornerShape(16.dp),
             color = surfaceColor,
             border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor),
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
+                .fillMaxWidth(0.92f)
+                .widthIn(max = 520.dp)
+                .wrapContentHeight()
+                .imePadding()
         ) {
-            Column(modifier = Modifier.padding(18.dp)) {
+            Column(
+                modifier = Modifier
+                    .padding(18.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
                 Text(
                     text = if (type == "SELLER") "Add New Wholesaler" else "Add New Customer",
                     fontWeight = FontWeight.Bold,
@@ -877,321 +857,387 @@ fun ContactDetailsScreen(
         theyOwe - theyPaid
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp)
+            .background(if (LocalIsDark.current) Color(0xFF141218) else Color(0xFFFBF8FD))
     ) {
-        // Back Header
-        Row(
+        // Main scrollable content
+        LazyColumn(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(top = 8.dp, bottom = 90.dp)
         ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = themeColor)
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = contact.name,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    color = if (LocalIsDark.current) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
-                )
-                Text(
-                    text = if (contact.type == "SELLER") "Wholesaler Account" else "Customer Account",
-                    fontSize = 11.sp,
-                    color = themeColor
-                )
-            }
-            // Delete contact action
-            IconButton(
-                onClick = {
-                    viewModel.deleteKhataContact(contact.id)
-                    onBack()
-                    Toast.makeText(context, "Contact deleted securely!", Toast.LENGTH_SHORT).show()
-                }
-            ) {
-                Icon(Icons.Default.Delete, contentDescription = "Delete Contact", tint = Color.Gray)
-            }
-        }
-
-        // Outstanding Balance Summary Card with Glassmorphism
-        GlassCardContainer(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 6.dp),
-            themeColor = themeColor
-        ) {
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = if (contact.type == "SELLER") "Net Outstanding Balance (We Owe)" else "Net Outstanding Dues (They Owe Us)",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Gray
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = formatKhataCurrency(balance, context),
-                    fontWeight = FontWeight.Black,
-                    fontSize = 28.sp,
-                    color = if (balance > 0) Color(0xFFD32F2F) else Color(0xFF388E3C)
-                )
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Send Bill & Copy Statement row
+            // Back Header
+            item {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    OutlinedButton(
-                        onClick = {
-                            val billText = generateBillText(contact, transactions, balance, context)
-                            clipboardManager.setText(AnnotatedString(billText))
-                            Toast.makeText(context, "Statement copied to Clipboard!", Toast.LENGTH_SHORT).show()
-                        },
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
-                    ) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Copy Statement", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = themeColor)
                     }
-
-                    Button(
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = contact.name,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 19.sp,
+                            color = if (LocalIsDark.current) Color.White else Color(0xFF1D1B20),
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = if (contact.type == "SELLER") "Wholesaler Account" else "Customer Account",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = themeColor
+                        )
+                    }
+                    // Delete contact action
+                    IconButton(
                         onClick = {
-                            showSendBillDialog = true
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = themeColor, contentColor = Color.White),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1f),
-                        contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                            viewModel.deleteKhataContact(contact.id)
+                            onBack()
+                            Toast.makeText(context, "Contact deleted securely!", Toast.LENGTH_SHORT).show()
+                        }
                     ) {
-                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Send Bill", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Icon(Icons.Default.Delete, contentDescription = "Delete Contact", tint = Color.Gray)
                     }
                 }
             }
-        }
 
-        Spacer(modifier = Modifier.height(6.dp))
+            // Outstanding Balance Summary Card
+            item {
+                GlassCardContainer(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    themeColor = themeColor
+                ) {
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = if (contact.type == "SELLER") "Net Outstanding Balance (We Owe)" else "Net Outstanding Dues (They Owe Us)",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Gray,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = formatKhataCurrency(balance, context),
+                            fontWeight = FontWeight.Black,
+                            fontSize = 28.sp,
+                            color = if (balance > 0) Color(0xFFD32F2F) else Color(0xFF388E3C)
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
 
-        // Paid / Payment Progress Graph Card
-        val totalCredit = remember(transactions) {
-            if (contact.type == "SELLER") {
-                transactions.filter { it.type == "WE_OWE" }.sumOf { it.amount }
-            } else {
-                transactions.filter { it.type == "THEY_OWE" }.sumOf { it.amount }
+                        // Send Bill & Copy Statement row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    val billText = generateBillText(contact, transactions, balance, context)
+                                    clipboardManager.setText(AnnotatedString(billText))
+                                    Toast.makeText(context, "Statement copied to Clipboard!", Toast.LENGTH_SHORT).show()
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                            ) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Copy Statement", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Button(
+                                onClick = {
+                                    showSendBillDialog = true
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = themeColor, contentColor = Color.White),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.weight(1f),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 8.dp)
+                            ) {
+                                Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Send Bill", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
             }
-        }
-        val totalPaid = remember(transactions) {
-            if (contact.type == "SELLER") {
-                transactions.filter { it.type == "WE_PAID" }.sumOf { it.amount }
-            } else {
-                transactions.filter { it.type == "THEY_PAID" }.sumOf { it.amount }
-            }
-        }
-        val paidRatio = if (totalCredit > 0) (totalPaid / totalCredit).coerceIn(0.0, 1.0).toFloat()
-        else if (totalPaid > 0) 1.0f
-        else 0.0f
-        val paidPct = (paidRatio * 100).toInt()
 
-        GlassCardContainer(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            themeColor = themeColor
-        ) {
-            Column(modifier = Modifier.fillMaxWidth()) {
+            // Payment Settlement Graph Card
+            item {
+                val totalCredit = if (contact.type == "SELLER") {
+                    transactions.filter { it.type == "WE_OWE" }.sumOf { it.amount }
+                } else {
+                    transactions.filter { it.type == "THEY_OWE" }.sumOf { it.amount }
+                }
+                val totalPaid = if (contact.type == "SELLER") {
+                    transactions.filter { it.type == "WE_PAID" }.sumOf { it.amount }
+                } else {
+                    transactions.filter { it.type == "THEY_PAID" }.sumOf { it.amount }
+                }
+                val paidRatio = if (totalCredit > 0) (totalPaid / totalCredit).coerceIn(0.0, 1.0).toFloat()
+                else if (totalPaid > 0) 1.0f
+                else 0.0f
+                val paidPct = (paidRatio * 100).toInt()
+
+                Spacer(modifier = Modifier.height(4.dp))
+                GlassCardContainer(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    themeColor = themeColor
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Analytics,
+                                    contentDescription = null,
+                                    tint = themeColor,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Payment Settlement Graph",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (LocalIsDark.current) Color(0xFFE6E1E5) else Color(0xFF1D1B20),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (paidRatio >= 1.0f && totalCredit > 0) "100% Cleared ✅" else "$paidPct% Paid",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (paidRatio >= 1.0f) Color(0xFF388E3C) else themeColor,
+                                maxLines = 1
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Progress graph bar
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(10.dp)
+                                .clip(RoundedCornerShape(5.dp))
+                                .background(if (LocalIsDark.current) Color(0xFF2E2A36) else Color.LightGray.copy(alpha = 0.35f))
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .fillMaxWidth(fraction = paidRatio)
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            listOf(
+                                                Color(0xFF388E3C),
+                                                Color(0xFF81C784)
+                                            )
+                                        )
+                                    )
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // 3 Equal-width Columns to prevent text collision across devices
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.Start
+                            ) {
+                                Text(
+                                    text = if (contact.type == "SELLER") "TOTAL WE OWE" else "TOTAL CREDIT",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Gray,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = formatKhataCurrency(totalCredit, context),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFD32F2F),
+                                    maxLines = 1
+                                )
+                            }
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "TOTAL PAID",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Gray,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = formatKhataCurrency(totalPaid, context),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF388E3C),
+                                    maxLines = 1
+                                )
+                            }
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                horizontalAlignment = Alignment.End
+                            ) {
+                                Text(
+                                    text = "REMAINING DUES",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Gray,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = formatKhataCurrency(balance, context),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (balance <= 0) Color(0xFF388E3C) else Color(0xFFD32F2F),
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Timeline Header & Filter Chips
+            item {
+                Spacer(modifier = Modifier.height(8.dp))
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Analytics,
-                            contentDescription = null,
-                            tint = themeColor,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Payment Settlement Graph",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (LocalIsDark.current) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
-                        )
-                    }
                     Text(
-                        text = if (paidRatio >= 1.0f && totalCredit > 0) "100% Fully Cleared ✅" else "$paidPct% Paid",
+                        text = "📜 Timeline of Purchases & Payments",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = if (LocalIsDark.current) Color(0xFFE6E1E5) else Color(0xFF1D1B20),
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "${filteredTransactions.size} shown",
                         fontSize = 11.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = if (paidRatio >= 1.0f) Color(0xFF388E3C) else themeColor
+                        color = Color.Gray,
+                        maxLines = 1
                     )
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Progress graph bar
-                Box(
+                // Filter chips row with horizontal scroll
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(10.dp)
-                        .clip(RoundedCornerShape(5.dp))
-                        .background(if (LocalIsDark.current) Color(0xFF2E2A36) else Color.LightGray.copy(alpha = 0.35f))
+                        .horizontalScroll(rememberScrollState())
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .fillMaxWidth(fraction = paidRatio)
-                            .clip(RoundedCornerShape(5.dp))
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(
-                                        Color(0xFF388E3C),
-                                        Color(0xFF81C784)
-                                    )
+                    listOf(
+                        "ALL" to "All Feed",
+                        "PURCHASES" to if (contact.type == "SELLER") "Credit Purchases" else "Credit Sales (Gave)",
+                        "PAYMENTS" to if (contact.type == "SELLER") "We Paid" else "Cash Received (Paid)"
+                    ).forEach { (type, label) ->
+                        val isSelected = filterType == type
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    if (isSelected) themeColor.copy(alpha = 0.15f)
+                                    else Color(0xFFF3EDF7)
                                 )
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isSelected) themeColor else Color.Transparent,
+                                    shape = RoundedCornerShape(12.dp)
+                                )
+                                .clickable { filterType = type }
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) themeColor else Color(0xFF49454F),
+                                maxLines = 1
                             )
-                    )
+                        }
+                    }
                 }
+                Spacer(modifier = Modifier.height(6.dp))
+            }
 
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Text("TOTAL CREDIT / SALES", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-                        Text(formatKhataCurrency(totalCredit, context), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFFD32F2F))
-                    }
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("TOTAL PAID RECEIVED", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-                        Text(formatKhataCurrency(totalPaid, context), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF388E3C))
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("REMAINING DUES", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+            // Timeline Entries List
+            if (filteredTransactions.isEmpty()) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Book,
+                            contentDescription = null,
+                            tint = Color.LightGray.copy(alpha = 0.7f),
+                            modifier = Modifier.size(44.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            formatKhataCurrency(balance, context),
+                            text = "No timeline entries found.",
+                            color = Color.Gray,
                             fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (balance <= 0) Color(0xFF388E3C) else Color(0xFFD32F2F)
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(10.dp))
-
-        // Ledger Entry Transactions Header
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "📜 Timeline of Purchases & Payments",
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = if (LocalIsDark.current) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
-            )
-            Text(
-                text = "${filteredTransactions.size} shown",
-                fontSize = 11.sp,
-                color = Color.Gray
-            )
-        }
-
-        // Filter chips row
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            listOf(
-                "ALL" to "All Feed",
-                "PURCHASES" to if (contact.type == "SELLER") "Credit Purchases" else "Credit Sales (Gave)",
-                "PAYMENTS" to if (contact.type == "SELLER") "We Paid" else "Cash Received (Paid)"
-            ).forEach { (type, label) ->
-                val isSelected = filterType == type
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(
-                            if (isSelected) themeColor.copy(alpha = 0.15f)
-                            else Color(0xFFF3EDF7)
-                        )
-                        .border(
-                            width = 1.dp,
-                            color = if (isSelected) themeColor else Color.Transparent,
-                            shape = RoundedCornerShape(12.dp)
-                        )
-                        .clickable { filterType = type }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                ) {
-                    Text(
-                        text = label,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isSelected) themeColor else Color(0xFF49454F)
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        // Ledger List with Timeline styling
-        if (filteredTransactions.isEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Book,
-                    contentDescription = null,
-                    tint = Color.LightGray.copy(alpha = 0.7f),
-                    modifier = Modifier.size(48.dp)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "No timeline entries found.",
-                    color = Color.Gray,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Medium
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                contentPadding = PaddingValues(vertical = 6.dp)
-            ) {
-                itemsIndexed(filteredTransactions, key = { _, tx -> tx.id }) { index, tx ->
+            } else {
+                itemsIndexed(filteredTransactions, key = { _, tx -> tx.id }) { _, tx ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(IntrinsicSize.Min),
                         verticalAlignment = Alignment.Top
                     ) {
-                        // Vertical Timeline path connector
                         val isAddition = tx.type == "THEY_OWE" || tx.type == "WE_OWE"
                         val nodeColor = if (isAddition) Color(0xFFC62828) else Color(0xFF2E7D32)
 
@@ -1201,14 +1247,12 @@ fun ContactDetailsScreen(
                                 .fillMaxHeight(),
                             contentAlignment = Alignment.Center
                         ) {
-                            // Stem connector line
                             Box(
                                 modifier = Modifier
                                     .fillMaxHeight()
                                     .width(2.dp)
                                     .background(Color.LightGray.copy(alpha = 0.5f))
                             )
-                            // Circle node dot
                             Box(
                                 modifier = Modifier
                                     .size(14.dp)
@@ -1220,14 +1264,13 @@ fun ContactDetailsScreen(
 
                         Spacer(modifier = Modifier.width(4.dp))
 
-                        // Transaction Card
                         Box(modifier = Modifier.weight(1f).padding(vertical = 4.dp)) {
                             TransactionItemRow(
                                 transaction = tx,
                                 contactType = contact.type,
                                 theme = theme,
                                 onDelete = { viewModel.deleteKhataTransaction(tx) },
-                                showTimelineLine = false // Hide inner timeline line since we draw the unified stem here!
+                                showTimelineLine = false
                             )
                         }
                     }
@@ -1235,60 +1278,108 @@ fun ContactDetailsScreen(
             }
         }
 
-        // Bottom Action buttons to record ledger items
-        Row(
+        // Sticky Pinned Bottom Action Bar for Recording Udhaar & Cash Payments
+        Surface(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth(),
+            shadowElevation = 12.dp,
+            color = if (LocalIsDark.current) Color(0xFF1D1B20) else Color.White
         ) {
-            if (contact.type == "SELLER") {
-                Button(
-                    onClick = {
-                        selectedTxType = "WE_OWE"
-                        showAddTxDialog = true
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Took Udhaar (I Owe)", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (contact.type == "SELLER") {
+                    Button(
+                        onClick = {
+                            selectedTxType = "WE_OWE"
+                            showAddTxDialog = true
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(vertical = 12.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Took Udhaar (I Owe)",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
 
-                Button(
-                    onClick = {
-                        selectedTxType = "WE_PAID"
-                        showAddTxDialog = true
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF388E3C)),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Paid Cash", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-            } else {
-                Button(
-                    onClick = {
-                        selectedTxType = "THEY_OWE"
-                        showAddTxDialog = true
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Gave Udhaar", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
+                    Button(
+                        onClick = {
+                            selectedTxType = "WE_PAID"
+                            showAddTxDialog = true
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF388E3C)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(vertical = 12.dp)
+                    ) {
+                        Icon(Icons.Default.Remove, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Paid Cash",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                } else {
+                    Button(
+                        onClick = {
+                            selectedTxType = "THEY_OWE"
+                            showAddTxDialog = true
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(vertical = 12.dp)
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Gave Udhaar (+)",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
 
-                Button(
-                    onClick = {
-                        selectedTxType = "THEY_PAID"
-                        showAddTxDialog = true
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF388E3C)),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Got Cash", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Button(
+                        onClick = {
+                            selectedTxType = "THEY_PAID"
+                            showAddTxDialog = true
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF388E3C)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(vertical = 12.dp)
+                    ) {
+                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Got Paid (-)",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
         }
@@ -1486,16 +1577,25 @@ fun AddTransactionDialog(
     val borderStrokeColor = if (isDark) Color(0xFF49454F) else Color.LightGray.copy(alpha = 0.5f)
     val borderFieldColor = if (isDark) Color(0xFF49454F) else Color(0xFF79747E)
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Surface(
             shape = RoundedCornerShape(16.dp),
             color = surfaceColor,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
+                .fillMaxWidth(0.92f)
+                .widthIn(max = 520.dp)
+                .wrapContentHeight()
+                .imePadding(),
             border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor)
         ) {
-            Column(modifier = Modifier.padding(18.dp)) {
+            Column(
+                modifier = Modifier
+                    .padding(18.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
                 Text(
                     text = dialogTitle,
                     fontWeight = FontWeight.Bold,
@@ -2219,23 +2319,40 @@ fun SendBillDialog(
     val inputBg = if (isDark) Color(0xFF2E2A36) else Color.White
     val borderStrokeColor = if (isDark) Color(0xFF49454F) else Color.LightGray.copy(alpha = 0.5f)
     val borderFieldColor = if (isDark) Color(0xFF49454F) else Color(0xFF79747E)
-    val previewBg = if (isDark) Color(0xFF2E2A36) else Color(0xFFF5F5F5)
+    val previewBg = if (isDark) Color(0xFF2A2733) else Color(0xFFF7F5F9)
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
         Surface(
-            shape = RoundedCornerShape(20.dp),
+            shape = RoundedCornerShape(24.dp),
             color = surfaceColor,
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp),
+                .fillMaxWidth(0.92f)
+                .widthIn(max = 540.dp)
+                .wrapContentHeight()
+                .imePadding(),
             border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor)
         ) {
             Column(
                 modifier = Modifier
                     .padding(20.dp)
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Header
+                // Top Sheet Drag Handle Accent Bar
+                Box(
+                    modifier = Modifier
+                        .width(42.dp)
+                        .height(4.dp)
+                        .clip(CircleShape)
+                        .background(textSecondary.copy(alpha = 0.3f))
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Sheet Header
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -2243,23 +2360,106 @@ fun SendBillDialog(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "✉️ Send Bill Statement",
+                            text = "🧾 Share Bill Statement",
                             fontWeight = FontWeight.ExtraBold,
-                            fontSize = 18.sp,
+                            fontSize = 19.sp,
                             color = textMain
                         )
-                        Text(
-                            text = "Recipient: ${contact.name}",
-                            fontSize = 12.sp,
-                            color = themeColor,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 2.dp)
+                        ) {
+                            Text(
+                                text = "Party: ${contact.name}",
+                                fontSize = 13.sp,
+                                color = themeColor,
+                                fontWeight = FontWeight.Bold
+                            )
+                            if (contact.phone.isNotBlank()) {
+                                Text(
+                                    text = " (${contact.phone})",
+                                    fontSize = 12.sp,
+                                    color = textSecondary
+                                )
+                            }
+                        }
                     }
                     IconButton(
                         onClick = onDismiss,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(textSecondary.copy(alpha = 0.12f))
                     ) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = textSecondary)
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = textSecondary, modifier = Modifier.size(18.dp))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Payment Status Segmented Selector
+                Text(
+                    text = "Payment Status",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textSecondary,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Pending Button
+                    val isPendingSelected = !isCleared
+                    val pendingBg = if (isPendingSelected) Color(0xFFFFF3E0) else (if (isDark) Color(0xFF2E2A36) else Color(0xFFF3EDF7))
+                    val pendingBorder = if (isPendingSelected) Color(0xFFE65100) else Color.Transparent
+                    val pendingText = if (isPendingSelected) Color(0xFFE65100) else textSecondary
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(pendingBg)
+                            .border(1.dp, pendingBorder, RoundedCornerShape(14.dp))
+                            .clickable { isCleared = false }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Payment Pending ⏳",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = pendingText
+                            )
+                        }
+                    }
+
+                    // Paid Button
+                    val isPaidSelected = isCleared
+                    val paidBg = if (isPaidSelected) Color(0xFFE8F5E9) else (if (isDark) Color(0xFF2E2A36) else Color(0xFFF3EDF7))
+                    val paidBorder = if (isPaidSelected) Color(0xFF2E7D32) else Color.Transparent
+                    val paidText = if (isPaidSelected) Color(0xFF2E7D32) else textSecondary
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(paidBg)
+                            .border(1.dp, paidBorder, RoundedCornerShape(14.dp))
+                            .clickable { isCleared = true }
+                            .padding(vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Paid / Cleared ✅",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = paidText
+                            )
+                        }
                     }
                 }
 
@@ -2267,10 +2467,11 @@ fun SendBillDialog(
 
                 // Language selection chips
                 Text(
-                    text = "Select Language",
+                    text = "Statement Language",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = textSecondary
+                    color = textSecondary,
+                    modifier = Modifier.fillMaxWidth()
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 FlowRow(
@@ -2307,50 +2508,6 @@ fun SendBillDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Status Type Selection
-                Text(
-                    text = "Statement Mode",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = textSecondary
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    listOf(false, true).forEach { cleared ->
-                        val label = if (cleared) "Paid / Cleared ✅" else "Pending Due ⏳"
-                        val isSelected = isCleared == cleared
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(
-                                    if (isSelected) themeColor.copy(alpha = 0.18f)
-                                    else if (isDark) Color(0xFF2E2A36) else Color(0xFFF3EDF7)
-                                )
-                                .border(
-                                    width = 1.dp,
-                                    color = if (isSelected) themeColor else Color.Transparent,
-                                    shape = RoundedCornerShape(12.dp)
-                                )
-                                .clickable { isCleared = cleared }
-                                .padding(vertical = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = label,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isSelected) themeColor else textSecondary
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
                 // Input field: Shop Name
                 OutlinedTextField(
                     value = shopName,
@@ -2377,7 +2534,7 @@ fun SendBillDialog(
                 OutlinedTextField(
                     value = customAmount,
                     onValueChange = { customAmount = it },
-                    label = { Text("Amount (₹)") },
+                    label = { Text("Statement Amount (₹)") },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
@@ -2394,33 +2551,56 @@ fun SendBillDialog(
                     )
                 )
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                // Message Preview
-                Text(
-                    text = "Message Preview",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = textSecondary
-                )
+                // Formatted Live Message Preview Box
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Message Statement Preview",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = textSecondary
+                    )
+
+                    // Active Status Badge Tag
+                    Surface(
+                        color = if (isCleared) Color(0xFFE8F5E9) else Color(0xFFFFF3E0),
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, if (isCleared) Color(0xFF2E7D32) else Color(0xFFE65100))
+                    ) {
+                        Text(
+                            text = if (isCleared) "STATUS: PAID ✅" else "STATUS: PENDING ⏳",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (isCleared) Color(0xFF2E7D32) else Color(0xFFE65100),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(6.dp))
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(previewBg, RoundedCornerShape(12.dp))
-                        .border(1.dp, borderStrokeColor, RoundedCornerShape(12.dp))
+                        .background(previewBg, RoundedCornerShape(14.dp))
+                        .border(1.dp, borderStrokeColor, RoundedCornerShape(14.dp))
                         .padding(14.dp)
                 ) {
                     Text(
                         text = finalMessage,
                         fontSize = 13.sp,
                         color = textMain,
-                        lineHeight = 18.sp
+                        lineHeight = 19.sp,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.SansSerif
                     )
                 }
 
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
+                // Bottom Action Buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -2435,22 +2615,22 @@ fun SendBillDialog(
                         onClick = { onCopy(finalMessage) },
                         colors = ButtonDefaults.buttonColors(containerColor = previewBg, contentColor = themeColor),
                         border = androidx.compose.foundation.BorderStroke(1.dp, themeColor.copy(alpha = 0.5f)),
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1.2f)
                     ) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(15.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Copy", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                     }
                     Button(
                         onClick = { onShare(finalMessage) },
                         colors = ButtonDefaults.buttonColors(containerColor = themeColor, contentColor = Color.White),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1.5f)
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1.6f)
                     ) {
-                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
+                        Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(15.dp), tint = Color.White)
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Send / Share", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("Share Statement", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
             }
@@ -3141,411 +3321,634 @@ fun KhataSettingsScreen(
 
 @Composable
 fun GramPriceCalculator(theme: TaskCardTheme) {
+    var calcMode by remember { mutableStateOf(0) } // 0 = Find Price by Weight, 1 = Find Weight by Budget
+
     var baseWeight by remember { mutableStateOf("100") }
     var baseWeightUnit by remember { mutableStateOf("g") } // "g" or "kg"
     var basePrice by remember { mutableStateOf("50") }
+
+    // Mode 0: Target Weight input
     var targetWeight by remember { mutableStateOf("20") }
     var targetWeightUnit by remember { mutableStateOf("g") } // "g" or "kg"
 
+    // Mode 1: Target Budget input
+    var targetBudget by remember { mutableStateOf("20") }
+
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
     val isDark = LocalIsDark.current
+
+    val themeColor = theme.primary()
     val cardBg = if (isDark) Color(0xFF211D2A) else Color(0xFFF9F6FC)
     val textMain = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
     val textSecondary = if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F)
     val inputBg = if (isDark) Color(0xFF2E2A36) else Color.White
-    val borderColor = if (isDark) Color(0xFF49454F) else Color(0xFFE1DDF3)
+    val borderColor = if (isDark) Color(0xFF49454F).copy(alpha = 0.5f) else Color(0xFFE1DDF3)
 
-    // Parse values and calculate cost
-    val calculatedCost: Double? = remember(baseWeight, baseWeightUnit, basePrice, targetWeight, targetWeightUnit) {
-        try {
-            val bw = baseWeight.toDoubleOrNull() ?: 0.0
-            val bp = basePrice.toDoubleOrNull() ?: 0.0
-            val tw = targetWeight.toDoubleOrNull() ?: 0.0
+    // Parse Base Rate
+    val bw = baseWeight.toDoubleOrNull() ?: 0.0
+    val bp = basePrice.toDoubleOrNull() ?: 0.0
+    val bwInGrams = if (baseWeightUnit == "kg") bw * 1000.0 else bw
+    val unitPricePerGram = if (bwInGrams > 0.0 && bp >= 0.0) bp / bwInGrams else null
 
-            if (bw <= 0.0 || bp < 0.0 || tw < 0.0) {
-                null
-            } else {
-                val bwInBase = if (baseWeightUnit == "kg") bw * 1000.0 else bw
-                val twInBase = if (targetWeightUnit == "kg") tw * 1000.0 else tw
-                (bp / bwInBase) * twInBase
-            }
-        } catch (e: Exception) {
-            null
-        }
-    }
+    // Mode 0 Calculation: Cost for Target Weight
+    val tw = targetWeight.toDoubleOrNull() ?: 0.0
+    val twInGrams = if (targetWeightUnit == "kg") tw * 1000.0 else tw
+    val calculatedCost: Double? = if (unitPricePerGram != null && twInGrams >= 0.0) {
+        unitPricePerGram * twInGrams
+    } else null
 
-    var isExpanded by remember { mutableStateOf(true) }
+    // Mode 1 Calculation: Weight for Target Budget
+    val tb = targetBudget.toDoubleOrNull() ?: 0.0
+    val calculatedWeightInGrams: Double? = if (unitPricePerGram != null && unitPricePerGram > 0.0 && tb >= 0.0) {
+        tb / unitPricePerGram
+    } else null
 
-    Card(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        colors = CardDefaults.cardColors(containerColor = cardBg),
-        shape = RoundedCornerShape(16.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, borderColor)
+            .padding(vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            // Header row
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { isExpanded = !isExpanded },
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+        // Top Header with Title and Reset Action
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Default.ShoppingCart,
-                        contentDescription = "Calculator",
-                        tint = theme.primary(),
+                        imageVector = Icons.Default.Calculate,
+                        contentDescription = null,
+                        tint = themeColor,
                         modifier = Modifier.size(22.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Column {
-                        Text(
-                            text = "⚖️ Simple Gram & Cost Calculator",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp,
-                            color = theme.primary()
-                        )
-                        Text(
-                            text = "Tap to calculate how much custom grams cost (e.g., Sugar/Rice)",
-                            fontSize = 11.sp,
-                            color = textSecondary
-                        )
-                    }
+                    Text(
+                        text = "Cost & Gram Calculator",
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 18.sp,
+                        color = textMain
+                    )
                 }
-                Icon(
-                    imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (isExpanded) "Collapse" else "Expand",
-                    tint = textSecondary,
-                    modifier = Modifier.size(20.dp)
+                Text(
+                    text = "Quick pricing & weight calculator for custom quantities",
+                    fontSize = 12.sp,
+                    color = textSecondary,
+                    modifier = Modifier.padding(start = 30.dp)
                 )
             }
 
-            AnimatedVisibility(visible = isExpanded) {
-                Column(modifier = Modifier.padding(top = 14.dp)) {
-                    // Help Presets Row
+            IconButton(
+                onClick = {
+                    baseWeight = "100"
+                    baseWeightUnit = "g"
+                    basePrice = "50"
+                    targetWeight = "20"
+                    targetWeightUnit = "g"
+                    targetBudget = "20"
+                },
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(themeColor.copy(alpha = 0.1f))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Refresh,
+                    contentDescription = "Reset",
+                    tint = themeColor,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        // Mode Switcher (Pill Tabs)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (isDark) Color(0xFF2A2535) else Color(0xFFEDE8F5))
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(if (calcMode == 0) themeColor else Color.Transparent)
+                    .clickable { calcMode = 0 }
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "🏷️ Find Cost",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    color = if (calcMode == 0) Color.White else textSecondary
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(9.dp))
+                    .background(if (calcMode == 1) themeColor else Color.Transparent)
+                    .clickable { calcMode = 1 }
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "💰 Find Weight",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    color = if (calcMode == 1) Color.White else textSecondary
+                )
+            }
+        }
+
+        // Hero Result Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = themeColor.copy(alpha = if (isDark) 0.18f else 0.12f)),
+            shape = RoundedCornerShape(16.dp),
+            border = androidx.compose.foundation.BorderStroke(1.5.dp, themeColor.copy(alpha = 0.4f))
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
-                        text = "Step 1: Tap a quick example to learn how it works:",
+                        text = if (calcMode == 0) "TOTAL CALCULATED COST" else "YOU GET EXACTLY",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = theme.primary(),
-                        modifier = Modifier.padding(bottom = 6.dp)
+                        color = themeColor,
+                        letterSpacing = 0.5.sp
                     )
 
-                    // Presets horizontal scroll row
+                    // Copy Action
                     Row(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 12.dp)
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        val presets = listOf(
-                            Triple("Sugar example (100g = ₹50)", "100", "50"),
-                            Triple("Rice example (1kg = ₹90)", "1", "90"),
-                            Triple("Spices example (50g = ₹35)", "50", "35"),
-                            Triple("Tea example (250g = ₹120)", "250", "120")
-                        )
-                        presets.forEach { (label, presetWeight, presetPrice) ->
-                            val unitVal = if (label.contains("1kg")) "kg" else "g"
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(theme.primary().copy(alpha = 0.08f))
-                                    .border(1.dp, theme.primary().copy(alpha = 0.2f), RoundedCornerShape(8.dp))
-                                    .clickable {
-                                        baseWeight = presetWeight
-                                        baseWeightUnit = unitVal
-                                        basePrice = presetPrice
-                                        targetWeight = if (unitVal == "kg") "0.5" else "20"
-                                        targetWeightUnit = if (unitVal == "kg") "kg" else "g"
-                                    }
-                                    .padding(horizontal = 8.dp, vertical = 6.dp)
-                            ) {
-                                Text(
-                                    text = label,
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = theme.primary()
-                                )
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(themeColor.copy(alpha = 0.15f))
+                            .clickable {
+                                val summaryStr = if (calcMode == 0) {
+                                    "$targetWeight$targetWeightUnit @ ₹${"%.2f".format(calculatedCost ?: 0.0)} (Rate: $baseWeight$baseWeightUnit = ₹$basePrice)"
+                                } else {
+                                    "₹$targetBudget buys ${if ((calculatedWeightInGrams ?: 0.0) >= 1000) "%.3f kg".format((calculatedWeightInGrams ?: 0.0)/1000) else "%.1f g".format(calculatedWeightInGrams ?: 0.0)} (Rate: $baseWeight$baseWeightUnit = ₹$basePrice)"
+                                }
+                                clipboardManager.setText(AnnotatedString(summaryStr))
+                                Toast.makeText(context, "Copied result to clipboard!", Toast.LENGTH_SHORT).show()
                             }
-                        }
-                    }
-
-                    // Base Pricing Inputs
-                    Text(
-                        text = "Step 2: Enter known pricing (e.g. 100g costs ₹50):",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = textSecondary,
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Base weight field
-                        OutlinedTextField(
-                            value = baseWeight,
-                            onValueChange = { baseWeight = it },
-                            label = { Text("Weight", fontSize = 10.sp) },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = textMain,
-                                unfocusedTextColor = textMain,
-                                focusedContainerColor = inputBg,
-                                unfocusedContainerColor = inputBg,
-                                focusedLabelColor = theme.primary(),
-                                unfocusedLabelColor = textSecondary,
-                                focusedBorderColor = theme.primary(),
-                                unfocusedBorderColor = borderColor
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1.3f),
-                            singleLine = true
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = "Copy",
+                            tint = themeColor,
+                            modifier = Modifier.size(12.dp)
                         )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(text = "Copy", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = themeColor)
+                    }
+                }
 
-                        // Base unit select (g / kg toggle button)
-                        Button(
-                            onClick = { baseWeightUnit = if (baseWeightUnit == "g") "kg" else "g" },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = theme.primary().copy(alpha = 0.12f),
-                                contentColor = theme.primary()
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier
-                                .weight(0.9f)
-                                .height(56.dp),
-                            contentPadding = PaddingValues(0.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                Text(baseWeightUnit, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                Icon(Icons.Default.SwapVert, contentDescription = null, modifier = Modifier.size(12.dp))
-                            }
+                // Primary Output Display
+                if (calcMode == 0) {
+                    Text(
+                        text = "₹${"%.2f".format(calculatedCost ?: 0.0)}",
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Black,
+                        color = themeColor
+                    )
+                    Text(
+                        text = if (calculatedCost != null && unitPricePerGram != null) {
+                            "✨ $targetWeight $targetWeightUnit costs ₹${"%.2f".format(calculatedCost)} (Rate: ₹${"%.2f".format(unitPricePerGram)} / g)"
+                        } else {
+                            "Enter valid rate and quantity below"
+                        },
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = textMain
+                    )
+                } else {
+                    val weightText = if (calculatedWeightInGrams != null) {
+                        if (calculatedWeightInGrams >= 1000.0) {
+                            "%.3f kg".format(calculatedWeightInGrams / 1000.0)
+                        } else {
+                            "%.1f g".format(calculatedWeightInGrams)
                         }
+                    } else "0 g"
 
-                        // Label "costs"
+                    Text(
+                        text = weightText,
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Black,
+                        color = themeColor
+                    )
+                    Text(
+                        text = if (calculatedWeightInGrams != null && unitPricePerGram != null) {
+                            "✨ For ₹$targetBudget, you get $weightText (Rate: ₹${"%.2f".format(unitPricePerGram)} / g)"
+                        } else {
+                            "Enter valid rate and budget below"
+                        },
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = textMain
+                    )
+                }
+            }
+        }
+
+        // Quick Preset Items Bar
+        Column {
+            Text(
+                text = "Quick Presets:",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = textSecondary,
+                modifier = Modifier.padding(bottom = 6.dp)
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                val presets = listOf(
+                    Triple("🌾 Rice (1kg = ₹60)", "1", "60"),
+                    Triple("🍬 Sugar (1kg = ₹45)", "1", "45"),
+                    Triple("🫖 Tea (250g = ₹130)", "250", "130"),
+                    Triple("🌶️ Spices (50g = ₹35)", "50", "35"),
+                    Triple("🧈 Ghee (500g = ₹320)", "500", "320"),
+                    Triple("🪙 Gold (1g = ₹6500)", "1", "6500")
+                )
+                presets.forEach { (label, pWeight, pPrice) ->
+                    val pUnit = if (label.contains("1kg")) "kg" else "g"
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isDark) Color(0xFF2A2535) else Color(0xFFEDE8F5))
+                            .border(1.dp, themeColor.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+                            .clickable {
+                                baseWeight = pWeight
+                                baseWeightUnit = pUnit
+                                basePrice = pPrice
+                            }
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
                         Text(
-                            text = "costs",
+                            text = label,
                             fontSize = 11.sp,
-                            color = textSecondary,
-                            modifier = Modifier.weight(0.6f),
-                            textAlign = TextAlign.Center
-                        )
-
-                        // Base price field
-                        OutlinedTextField(
-                            value = basePrice,
-                            onValueChange = { basePrice = it },
-                            label = { Text("Price (₹)", fontSize = 10.sp) },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = textMain,
-                                unfocusedTextColor = textMain,
-                                focusedContainerColor = inputBg,
-                                unfocusedContainerColor = inputBg,
-                                focusedLabelColor = theme.primary(),
-                                unfocusedLabelColor = textSecondary,
-                                focusedBorderColor = theme.primary(),
-                                unfocusedBorderColor = borderColor
-                            ),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1.3f),
-                            singleLine = true
+                            fontWeight = FontWeight.SemiBold,
+                            color = textMain
                         )
                     }
+                }
+            }
+        }
 
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Target Weight input
+        // Card 1: Known Base Rate Input
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = cardBg),
+            shape = RoundedCornerShape(14.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, borderColor)
+        ) {
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(themeColor),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("1", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Step 3: Enter the custom weight you want to buy:",
-                        fontSize = 11.sp,
+                        text = "Known Base Rate",
                         fontWeight = FontWeight.Bold,
-                        color = textSecondary,
-                        modifier = Modifier.padding(bottom = 6.dp)
+                        fontSize = 13.sp,
+                        color = textMain
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Base Weight
+                    OutlinedTextField(
+                        value = baseWeight,
+                        onValueChange = { baseWeight = it },
+                        label = { Text("Base Weight") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = textMain,
+                            unfocusedTextColor = textMain,
+                            focusedContainerColor = inputBg,
+                            unfocusedContainerColor = inputBg,
+                            focusedBorderColor = themeColor,
+                            unfocusedBorderColor = borderColor
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1.2f),
+                        singleLine = true
                     )
 
+                    // Unit Toggle (g / kg)
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(inputBg)
+                            .border(1.dp, borderColor, RoundedCornerShape(10.dp))
+                            .padding(2.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (baseWeightUnit == "g") themeColor else Color.Transparent)
+                                .clickable { baseWeightUnit = "g" }
+                                .padding(horizontal = 10.dp, vertical = 12.dp)
+                        ) {
+                            Text("g", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (baseWeightUnit == "g") Color.White else textSecondary)
+                        }
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (baseWeightUnit == "kg") themeColor else Color.Transparent)
+                                .clickable { baseWeightUnit = "kg" }
+                                .padding(horizontal = 10.dp, vertical = 12.dp)
+                        ) {
+                            Text("kg", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (baseWeightUnit == "kg") Color.White else textSecondary)
+                        }
+                    }
+
+                    Text(
+                        text = "=",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = textSecondary
+                    )
+
+                    // Base Price
+                    OutlinedTextField(
+                        value = basePrice,
+                        onValueChange = { basePrice = it },
+                        label = { Text("Price (₹)") },
+                        prefix = { Text("₹", fontWeight = FontWeight.Bold, color = themeColor) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = textMain,
+                            unfocusedTextColor = textMain,
+                            focusedContainerColor = inputBg,
+                            unfocusedContainerColor = inputBg,
+                            focusedBorderColor = themeColor,
+                            unfocusedBorderColor = borderColor
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.weight(1.2f),
+                        singleLine = true
+                    )
+                }
+            }
+        }
+
+        // Card 2: Target Quantity / Budget Input
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = cardBg),
+            shape = RoundedCornerShape(14.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, borderColor)
+        ) {
+            Column(
+                modifier = Modifier.padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(themeColor),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("2", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (calcMode == 0) "Quantity to Buy" else "Your Target Budget",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        color = textMain
+                    )
+                }
+
+                if (calcMode == 0) {
+                    // Mode 0: Target Weight Input with Stepper and Unit Toggle
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Quick minus button
                         IconButton(
                             onClick = {
                                 val current = targetWeight.toDoubleOrNull() ?: 0.0
                                 val step = if (targetWeightUnit == "kg") 0.1 else 10.0
                                 if (current > step) {
-                                    targetWeight = if (targetWeightUnit == "kg") {
-                                        "%.1f".format(current - step)
-                                    } else {
-                                        "%.0f".format(current - step)
-                                    }
+                                    targetWeight = if (targetWeightUnit == "kg") "%.1f".format(current - step) else "%.0f".format(current - step)
                                 }
                             },
                             modifier = Modifier
-                                .size(40.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(theme.primary().copy(alpha = 0.08f))
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(themeColor.copy(alpha = 0.1f))
                         ) {
-                            Text("-", fontWeight = FontWeight.Bold, color = theme.primary(), fontSize = 18.sp)
+                            Text("-", fontWeight = FontWeight.Bold, color = themeColor, fontSize = 20.sp)
                         }
 
-                        // Target weight input field
                         OutlinedTextField(
                             value = targetWeight,
                             onValueChange = { targetWeight = it },
-                            label = { Text("Buy Weight", fontSize = 10.sp) },
+                            label = { Text("Buy Weight") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = textMain,
                                 unfocusedTextColor = textMain,
                                 focusedContainerColor = inputBg,
                                 unfocusedContainerColor = inputBg,
-                                focusedLabelColor = theme.primary(),
-                                unfocusedLabelColor = textSecondary,
-                                focusedBorderColor = theme.primary(),
+                                focusedBorderColor = themeColor,
                                 unfocusedBorderColor = borderColor
                             ),
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.weight(1.5f),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
                             singleLine = true
                         )
 
-                        // Quick plus button
                         IconButton(
                             onClick = {
                                 val current = targetWeight.toDoubleOrNull() ?: 0.0
                                 val step = if (targetWeightUnit == "kg") 0.1 else 10.0
-                                targetWeight = if (targetWeightUnit == "kg") {
-                                    "%.1f".format(current + step)
-                                } else {
-                                    "%.0f".format(current + step)
-                                }
+                                targetWeight = if (targetWeightUnit == "kg") "%.1f".format(current + step) else "%.0f".format(current + step)
                             },
                             modifier = Modifier
-                                .size(40.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(theme.primary().copy(alpha = 0.08f))
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(themeColor.copy(alpha = 0.1f))
                         ) {
-                            Text("+", fontWeight = FontWeight.Bold, color = theme.primary(), fontSize = 18.sp)
+                            Text("+", fontWeight = FontWeight.Bold, color = themeColor, fontSize = 20.sp)
                         }
 
-                        // Target unit select
-                        Button(
-                            onClick = { targetWeightUnit = if (targetWeightUnit == "g") "kg" else "g" },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = theme.primary().copy(alpha = 0.12f),
-                                contentColor = theme.primary()
-                            ),
-                            shape = RoundedCornerShape(8.dp),
+                        // Unit Toggle (g / kg)
+                        Row(
                             modifier = Modifier
-                                .weight(1f)
-                                .height(56.dp),
-                            contentPadding = PaddingValues(0.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(inputBg)
+                                .border(1.dp, borderColor, RoundedCornerShape(10.dp))
+                                .padding(2.dp)
                         ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (targetWeightUnit == "g") themeColor else Color.Transparent)
+                                    .clickable { targetWeightUnit = "g" }
+                                    .padding(horizontal = 10.dp, vertical = 12.dp)
                             ) {
-                                Text(targetWeightUnit, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                                Icon(Icons.Default.SwapVert, contentDescription = null, modifier = Modifier.size(12.dp))
+                                Text("g", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (targetWeightUnit == "g") Color.White else textSecondary)
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (targetWeightUnit == "kg") themeColor else Color.Transparent)
+                                    .clickable { targetWeightUnit = "kg" }
+                                    .padding(horizontal = 10.dp, vertical = 12.dp)
+                            ) {
+                                Text("kg", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (targetWeightUnit == "kg") Color.White else textSecondary)
                             }
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // Target Quick Preset Chips Row
+                    // Quick Chips for Target Weight
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        val targets = if (targetWeightUnit == "kg") {
-                            listOf("0.1", "0.25", "0.5", "1", "2")
+                        val weightChips = if (targetWeightUnit == "kg") {
+                            listOf("0.25", "0.5", "1", "2", "5")
                         } else {
                             listOf("10", "20", "50", "100", "250", "500")
                         }
-                        targets.forEach { value ->
-                            val isSel = targetWeight == value
+                        weightChips.forEach { chipVal ->
+                            val isSelected = targetWeight == chipVal
                             Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(if (isSel) theme.primary() else theme.primary().copy(alpha = 0.05f))
-                                    .clickable { targetWeight = value }
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSelected) themeColor else themeColor.copy(alpha = 0.08f))
+                                    .clickable { targetWeight = chipVal }
+                                    .padding(vertical = 6.dp),
+                                contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = "$value$targetWeightUnit",
-                                    fontSize = 10.sp,
+                                    text = "$chipVal$targetWeightUnit",
+                                    fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (isSel) Color.White else theme.primary()
+                                    color = if (isSelected) Color.White else themeColor
                                 )
                             }
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Final Conversational Calculation Result panel
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(theme.primary().copy(alpha = 0.12f))
-                            .border(1.5.dp, theme.primary().copy(alpha = 0.3f), RoundedCornerShape(12.dp))
-                            .padding(14.dp)
+                } else {
+                    // Mode 1: Target Budget Input with Stepper
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.Info,
-                                        contentDescription = "Result Info",
-                                        tint = theme.primary(),
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Answer",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = theme.primary()
-                                    )
+                        IconButton(
+                            onClick = {
+                                val current = targetBudget.toDoubleOrNull() ?: 0.0
+                                if (current > 10.0) {
+                                    targetBudget = "%.0f".format(current - 10.0)
                                 }
+                            },
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(themeColor.copy(alpha = 0.1f))
+                        ) {
+                            Text("-", fontWeight = FontWeight.Bold, color = themeColor, fontSize = 20.sp)
+                        }
 
+                        OutlinedTextField(
+                            value = targetBudget,
+                            onValueChange = { targetBudget = it },
+                            label = { Text("Budget (₹)") },
+                            prefix = { Text("₹", fontWeight = FontWeight.Bold, color = themeColor) },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = textMain,
+                                unfocusedTextColor = textMain,
+                                focusedContainerColor = inputBg,
+                                unfocusedContainerColor = inputBg,
+                                focusedBorderColor = themeColor,
+                                unfocusedBorderColor = borderColor
+                            ),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f),
+                            singleLine = true
+                        )
+
+                        IconButton(
+                            onClick = {
+                                val current = targetBudget.toDoubleOrNull() ?: 0.0
+                                targetBudget = "%.0f".format(current + 10.0)
+                            },
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(themeColor.copy(alpha = 0.1f))
+                        ) {
+                            Text("+", fontWeight = FontWeight.Bold, color = themeColor, fontSize = 20.sp)
+                        }
+                    }
+
+                    // Quick Chips for Target Budget
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        val budgetChips = listOf("10", "20", "50", "100", "200", "500")
+                        budgetChips.forEach { chipVal ->
+                            val isSelected = targetBudget == chipVal
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSelected) themeColor else themeColor.copy(alpha = 0.08f))
+                                    .clickable { targetBudget = chipVal }
+                                    .padding(vertical = 6.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Text(
-                                    text = "₹${"%.2f".format(calculatedCost ?: 0.0)}",
-                                    fontSize = 22.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = theme.primary()
+                                    text = "₹$chipVal",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) Color.White else themeColor
                                 )
                             }
-
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Text(
-                                text = if (calculatedCost != null) {
-                                    "✨ If $baseWeight$baseWeightUnit costs ₹$basePrice, then $targetWeight$targetWeightUnit will cost exactly ₹${"%.2f".format(calculatedCost)}."
-                                } else {
-                                    "⚠️ Please enter a valid weight and cost to calculate the price."
-                                },
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = textMain,
-                                lineHeight = 16.sp
-                            )
                         }
                     }
                 }
