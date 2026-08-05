@@ -395,14 +395,26 @@ class TodoViewModel(application: Application) : AndroidViewModel(application) {
         return repository.getTransactionsForContact(contactId)
     }
 
-    fun addKhataContact(name: String, phone: String, type: String) {
+    fun addKhataContact(name: String, phone: String, type: String, avatarUri: String = "") {
         viewModelScope.launch {
-            repository.insertContact(KhataContact(name = name, phone = phone, type = type))
+            repository.insertContact(KhataContact(name = name, phone = phone, type = type, avatarUri = avatarUri))
         }
     }
 
-    suspend fun addKhataContactAndGetId(name: String, phone: String, type: String): Long {
-        return repository.insertContact(KhataContact(name = name, phone = phone, type = type))
+    suspend fun addKhataContactAndGetId(name: String, phone: String, type: String, avatarUri: String = ""): Long {
+        return repository.insertContact(KhataContact(name = name, phone = phone, type = type, avatarUri = avatarUri))
+    }
+
+    fun updateKhataContactAvatar(contact: KhataContact, avatarUri: String) {
+        viewModelScope.launch {
+            repository.updateContact(contact.copy(avatarUri = avatarUri))
+        }
+    }
+
+    fun updateKhataContact(contact: KhataContact) {
+        viewModelScope.launch {
+            repository.updateContact(contact)
+        }
     }
 
     fun deleteKhataContact(contactId: Int) {

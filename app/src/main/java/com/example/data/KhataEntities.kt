@@ -9,6 +9,7 @@ data class KhataContact(
     val name: String,
     val phone: String = "",
     val type: String, // "SELLER" (wholesaler) or "CUSTOMER" (consumer)
+    val avatarUri: String = "", // Custom DP image URI or preset avatar key
     val createdAt: Long = System.currentTimeMillis()
 )
 

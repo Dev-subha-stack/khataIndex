@@ -12,6 +12,8 @@ import android.provider.MediaStore
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.unit.*
+import coil.compose.rememberAsyncImagePainter
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import kotlinx.coroutines.CoroutineScope
@@ -88,6 +90,7 @@ fun GlassCardContainer(
     modifier: Modifier = Modifier,
     shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(20.dp),
     themeColor: Color = MaterialTheme.colorScheme.primary,
+    contentPadding: PaddingValues = PaddingValues(16.dp),
     onClick: (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -95,50 +98,367 @@ fun GlassCardContainer(
     val prefs = LocalContext.current.getSharedPreferences("khatabook_prefs", Context.MODE_PRIVATE)
     val glassMode = prefs.getBoolean("glass_mode", true)
 
-    val glassBg = if (glassMode) {
-        if (isDark) Color(0xFF1F1C2B).copy(alpha = 0.68f) else Color.White.copy(alpha = 0.78f)
+    val glassBgBrush = if (glassMode) {
+        if (isDark) {
+            Brush.verticalGradient(
+                colors = listOf(
+                    Color(0xFF2C263E).copy(alpha = 0.65f),
+                    Color(0xFF191525).copy(alpha = 0.80f)
+                )
+            )
+        } else {
+            Brush.verticalGradient(
+                colors = listOf(
+                    Color.White.copy(alpha = 0.85f),
+                    Color(0xFFF3EEFF).copy(alpha = 0.68f)
+                )
+            )
+        }
     } else {
-        if (isDark) Color(0xFF211D2A) else Color.White
+        if (isDark) SolidColor(Color(0xFF211D2A)) else SolidColor(Color.White)
     }
 
-    val glassBorder = Brush.linearGradient(
+    val glassBorderBrush = if (glassMode) {
+        Brush.linearGradient(
+            colors = if (isDark) listOf(
+                Color.White.copy(alpha = 0.50f),
+                themeColor.copy(alpha = 0.45f),
+                Color.White.copy(alpha = 0.15f)
+            ) else listOf(
+                Color.White.copy(alpha = 0.95f),
+                themeColor.copy(alpha = 0.35f),
+                Color.White.copy(alpha = 0.60f)
+            )
+        )
+    } else {
+        SolidColor(if (isDark) Color(0xFF383344) else Color(0xFFE1DDF3))
+    }
+
+    val shimmerHighlight = Brush.linearGradient(
         colors = if (isDark) listOf(
-            Color.White.copy(alpha = 0.32f),
-            themeColor.copy(alpha = 0.45f),
-            Color.White.copy(alpha = 0.1f)
+            Color.White.copy(alpha = 0.10f),
+            Color.Transparent,
+            Color.White.copy(alpha = 0.03f)
         ) else listOf(
-            Color.White.copy(alpha = 0.95f),
-            themeColor.copy(alpha = 0.35f),
-            Color.White.copy(alpha = 0.5f)
+            Color.White.copy(alpha = 0.40f),
+            Color.Transparent,
+            Color.White.copy(alpha = 0.15f)
         )
     )
 
-    var isPressed by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (isPressed) 0.985f else 1f,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
-        label = "glass_scale"
-    )
-
-    Surface(
+    Box(
         modifier = modifier
-            .scale(scale)
             .clip(shape)
-            .border(1.dp, glassBorder, shape)
+            .background(glassBgBrush, shape)
+            .border(1.2.dp, glassBorderBrush, shape)
             .then(
                 if (onClick != null) {
-                    Modifier.clickable {
-                        isPressed = true
-                        onClick()
-                    }
+                    Modifier.clickable(onClick = onClick)
                 } else Modifier
-            ),
-        shape = shape,
-        color = glassBg,
-        tonalElevation = if (glassMode) 6.dp else 2.dp
+            )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        if (glassMode) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(shimmerHighlight, shape)
+            )
+        }
+
+        Column(modifier = Modifier.padding(contentPadding)) {
             content()
+        }
+    }
+}
+
+data class PresetAvatar(
+    val id: String,
+    val name: String,
+    val emoji: String,
+    val category: String, // "WHOLESALER", "CUSTOMER", or "ALL"
+    val gradientColors: List<Color>
+)
+
+val PRESET_AVATARS = listOf(
+    PresetAvatar("preset_wholesaler_suit", "Wholesale Executive", "👔", "WHOLESALER", listOf(Color(0xFF3F51B5), Color(0xFF1A237E))),
+    PresetAvatar("preset_shopkeeper", "Main Storekeeper", "🏬", "WHOLESALER", listOf(Color(0xFFFF9800), Color(0xFFE65100))),
+    PresetAvatar("preset_bulk_supplier", "Bulk Supplier", "📦", "WHOLESALER", listOf(Color(0xFF009688), Color(0xFF004D40))),
+    PresetAvatar("preset_factory_dealer", "Factory Distributor", "🏭", "WHOLESALER", listOf(Color(0xFF607D8B), Color(0xFF263238))),
+    PresetAvatar("preset_transport", "Logistics Agent", "🚚", "WHOLESALER", listOf(Color(0xFF795548), Color(0xFF3E2723))),
+
+    PresetAvatar("preset_customer_user", "Retail Customer", "👤", "CUSTOMER", listOf(Color(0xFF2196F3), Color(0xFF0D47A1))),
+    PresetAvatar("preset_regular_buyer", "Regular Buyer", "🛒", "CUSTOMER", listOf(Color(0xFF4CAF50), Color(0xFF1B5E20))),
+    PresetAvatar("preset_vip_client", "VIP Client", "👑", "CUSTOMER", listOf(Color(0xFFFFD700), Color(0xFFFF8C00))),
+    PresetAvatar("preset_loyal_shopper", "Loyal Shopper", "🛍️", "CUSTOMER", listOf(Color(0xFFE91E63), Color(0xFF880E4F))),
+    PresetAvatar("preset_credit_account", "Credit Account", "💳", "CUSTOMER", listOf(Color(0xFF9C27B0), Color(0xFF4A148C)))
+)
+
+@Composable
+fun GlassContactAvatar(
+    contactName: String,
+    avatarUri: String,
+    size: Dp = 48.dp,
+    themeColor: Color = MaterialTheme.colorScheme.primary,
+    showEditBadge: Boolean = false,
+    onClick: (() -> Unit)? = null
+) {
+    val isDark = LocalIsDark.current
+    val initial = contactName.trim().take(1).ifEmpty { "?" }.uppercase()
+    val preset = PRESET_AVATARS.find { it.id == avatarUri }
+
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(CircleShape)
+            .then(
+                if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        // Outer glowing glass border ring
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+                .background(
+                    Brush.radialGradient(
+                        colors = listOf(
+                            themeColor.copy(alpha = 0.35f),
+                            Color.Transparent
+                        )
+                    )
+                )
+                .border(
+                    width = maxOf(1.5f, size.value * 0.035f).dp,
+                    brush = Brush.linearGradient(
+                        listOf(
+                            Color.White.copy(alpha = 0.9f),
+                            themeColor.copy(alpha = 0.8f),
+                            Color.White.copy(alpha = 0.4f)
+                        )
+                    ),
+                    shape = CircleShape
+                )
+        )
+
+        // Avatar Image / Preset / Default Initial
+        if (avatarUri.startsWith("content://") || avatarUri.startsWith("file://") || avatarUri.startsWith("http")) {
+            Image(
+                painter = rememberAsyncImagePainter(avatarUri),
+                contentDescription = "$contactName Avatar",
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(3.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        } else if (preset != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(3.dp)
+                    .clip(CircleShape)
+                    .background(Brush.linearGradient(preset.gradientColors)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = preset.emoji,
+                    fontSize = (size.value * 0.45f).sp
+                )
+            }
+        } else {
+            // Default initial letter avatar with frosted glass gradient
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(3.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                themeColor.copy(alpha = 0.45f),
+                                themeColor.copy(alpha = 0.20f)
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = initial,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = (size.value * 0.42f).sp,
+                    color = if (isDark) Color.White else themeColor
+                )
+            }
+        }
+
+        // Optional Camera Edit Badge
+        if (showEditBadge) {
+            Box(
+                modifier = Modifier
+                    .size((size.value * 0.36f).dp)
+                    .align(Alignment.BottomEnd)
+                    .clip(CircleShape)
+                    .background(themeColor)
+                    .border(1.dp, Color.White, CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CameraAlt,
+                    contentDescription = "Edit DP",
+                    tint = Color.White,
+                    modifier = Modifier.size((size.value * 0.22f).dp)
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun AvatarPickerModal(
+    currentAvatarUri: String,
+    contactName: String,
+    contactType: String,
+    themeColor: Color,
+    onDismiss: () -> Unit,
+    onAvatarSelected: (String) -> Unit
+) {
+    val isDark = LocalIsDark.current
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            onAvatarSelected(it.toString())
+            onDismiss()
+        }
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        GlassCardContainer(
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .widthIn(max = 500.dp)
+                .wrapContentHeight()
+                .padding(16.dp),
+            themeColor = themeColor,
+            shape = RoundedCornerShape(24.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Custom Profile Picture & DP",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = if (isDark) Color.White else Color(0xFF1D1B20)
+                )
+                Text(
+                    text = "Set a custom photo for $contactName (${if (contactType == "SELLER") "Wholesaler" else "Customer"})",
+                    fontSize = 12.sp,
+                    color = Color.Gray,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Current Avatar Preview
+                GlassContactAvatar(
+                    contactName = contactName,
+                    avatarUri = currentAvatarUri,
+                    size = 72.dp,
+                    themeColor = themeColor
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Action 1: Upload from Device Gallery
+                Button(
+                    onClick = { galleryLauncher.launch("image/*") },
+                    colors = ButtonDefaults.buttonColors(containerColor = themeColor),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.PhotoLibrary, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Upload Photo from Gallery", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Divider(color = themeColor.copy(alpha = 0.2f))
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Action 2: Preset Avatar Options
+                Text(
+                    text = "Or Choose Preset Avatar",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                val filteredPresets = PRESET_AVATARS.filter { it.category == contactType }
+                val presetsToShow = if (filteredPresets.isEmpty()) PRESET_AVATARS else filteredPresets
+
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    presetsToShow.forEach { preset ->
+                        val isSelected = currentAvatarUri == preset.id
+                        Box(
+                            modifier = Modifier
+                                .padding(6.dp)
+                                .size(54.dp)
+                                .clip(CircleShape)
+                                .background(Brush.linearGradient(preset.gradientColors))
+                                .border(
+                                    width = if (isSelected) 3.dp else 1.dp,
+                                    color = if (isSelected) Color.White else Color.Transparent,
+                                    shape = CircleShape
+                                )
+                                .clickable {
+                                    onAvatarSelected(preset.id)
+                                    onDismiss()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(preset.emoji, fontSize = 24.sp)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Reset to Default Initial Letter
+                    TextButton(
+                        onClick = {
+                            onAvatarSelected("")
+                            onDismiss()
+                        }
+                    ) {
+                        Text("Reset DP", color = Color.Red.copy(alpha = 0.8f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    TextButton(onClick = onDismiss) {
+                        Text("Close", color = Color.Gray, fontSize = 13.sp)
+                    }
+                }
+            }
         }
     }
 }
@@ -154,6 +474,7 @@ fun KhataBookDashboard(
     var selectedTab by remember { mutableStateOf(0) } // 0 = Wholesalers (Sellers), 1 = Customers (Consumers)
     var selectedContact by remember { mutableStateOf<KhataContact?>(null) }
     var showAddContactDialog by remember { mutableStateOf(false) }
+    var contactForAvatarChange by remember { mutableStateOf<KhataContact?>(null) }
     var showKhataSettingsScreen by remember(initialShowSettings) { mutableStateOf(initialShowSettings) }
     var khataSearchQuery by remember { mutableStateOf("") }
 
@@ -261,8 +582,8 @@ fun KhataBookDashboard(
                                 .background(themeColor.copy(alpha = 0.15f))
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "Khata Settings",
+                                imageVector = Icons.Default.Build,
+                                contentDescription = "Khata Settings (Wrench)",
                                 tint = themeColor,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -560,6 +881,7 @@ fun KhataBookDashboard(
                                 contact = contact,
                                 balance = balance,
                                 theme = theme,
+                                onAvatarClick = { contactForAvatarChange = contact },
                                 onClick = { selectedContact = contact }
                             )
                         }
@@ -569,13 +891,28 @@ fun KhataBookDashboard(
         }
     }
 
+    if (contactForAvatarChange != null) {
+        AvatarPickerModal(
+            currentAvatarUri = contactForAvatarChange!!.avatarUri,
+            contactName = contactForAvatarChange!!.name,
+            contactType = contactForAvatarChange!!.type,
+            themeColor = themeColor,
+            onDismiss = { contactForAvatarChange = null },
+            onAvatarSelected = { newUri ->
+                viewModel.updateKhataContactAvatar(contactForAvatarChange!!, newUri)
+                contactForAvatarChange = null
+                Toast.makeText(context, "Profile Picture updated!", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+
     if (showAddContactDialog) {
         AddContactDialog(
             type = if (selectedTab == 0) "SELLER" else "CUSTOMER",
             theme = theme,
             onDismiss = { showAddContactDialog = false },
-            onAdd = { name, phone ->
-                viewModel.addKhataContact(name, phone, if (selectedTab == 0) "SELLER" else "CUSTOMER")
+            onAdd = { name, phone, avatarUri ->
+                viewModel.addKhataContact(name, phone, if (selectedTab == 0) "SELLER" else "CUSTOMER", avatarUri)
                 showAddContactDialog = false
                 Toast.makeText(context, "Contact added successfully!", Toast.LENGTH_SHORT).show()
             }
@@ -588,6 +925,7 @@ fun ContactLedgerCard(
     contact: KhataContact,
     balance: Double,
     theme: TaskCardTheme,
+    onAvatarClick: (() -> Unit)? = null,
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
@@ -605,30 +943,15 @@ fun ContactLedgerCard(
                 .padding(vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Circular Avatar Placeholder with initial letter
-            val initial = contact.name.trim().take(1).ifEmpty { "?" }.uppercase()
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.linearGradient(
-                            colors = listOf(
-                                themeColor.copy(alpha = 0.35f),
-                                themeColor.copy(alpha = 0.15f)
-                            )
-                        )
-                    )
-                    .border(1.5.dp, themeColor.copy(alpha = 0.6f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = initial,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    color = if (isDark) Color.White else themeColor
-                )
-            }
+            // Glass Contact Avatar with DP support and camera badge preview
+            GlassContactAvatar(
+                contactName = contact.name,
+                avatarUri = contact.avatarUri,
+                size = 48.dp,
+                themeColor = themeColor,
+                showEditBadge = true,
+                onClick = onAvatarClick
+            )
 
             Spacer(modifier = Modifier.width(12.dp))
 
@@ -689,7 +1012,7 @@ fun ContactLedgerCard(
                     text = formatKhataCurrency(balance, context),
                     fontWeight = FontWeight.ExtraBold,
                     fontSize = 15.sp,
-                    color = if (balance > 0) Color(0xFFD32F2F) else Color(0xFF388E3C),
+                    color = if (balance > 0) Color(0xFFE53935) else Color(0xFF43A047),
                     maxLines = 1
                 )
             }
@@ -702,47 +1025,77 @@ fun AddContactDialog(
     type: String,
     theme: TaskCardTheme,
     onDismiss: () -> Unit,
-    onAdd: (name: String, phone: String) -> Unit
+    onAdd: (name: String, phone: String, avatarUri: String) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
+    var avatarUri by remember { mutableStateOf("") }
+    var showAvatarPicker by remember { mutableStateOf(false) }
 
     val themeColor = theme.primary()
-
     val isDark = LocalIsDark.current
-    val surfaceColor = if (isDark) Color(0xFF1D1B22) else Color.White
     val textMain = if (isDark) Color(0xFFE6E1E5) else Color(0xFF1D1B20)
     val textSecondary = if (isDark) Color(0xFFCAC4D0) else Color(0xFF49454F)
     val inputBg = if (isDark) Color(0xFF2E2A36) else Color.White
-    val borderStrokeColor = if (isDark) Color(0xFF49454F) else Color.LightGray.copy(alpha = 0.5f)
     val borderFieldColor = if (isDark) Color(0xFF49454F) else Color(0xFF79747E)
+
+    if (showAvatarPicker) {
+        AvatarPickerModal(
+            currentAvatarUri = avatarUri,
+            contactName = name.ifBlank { if (type == "SELLER") "New Wholesaler" else "New Customer" },
+            contactType = type,
+            themeColor = themeColor,
+            onDismiss = { showAvatarPicker = false },
+            onAvatarSelected = { selectedUri -> avatarUri = selectedUri }
+        )
+    }
 
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = surfaceColor,
-            border = androidx.compose.foundation.BorderStroke(1.dp, borderStrokeColor),
+        GlassCardContainer(
             modifier = Modifier
                 .fillMaxWidth(0.92f)
                 .widthIn(max = 520.dp)
                 .wrapContentHeight()
-                .imePadding()
+                .imePadding(),
+            themeColor = themeColor,
+            shape = RoundedCornerShape(24.dp)
         ) {
             Column(
                 modifier = Modifier
-                    .padding(18.dp)
-                    .verticalScroll(rememberScrollState())
+                    .fillMaxWidth()
+                    .padding(4.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     text = if (type == "SELLER") "Add New Wholesaler" else "Add New Customer",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    fontSize = 17.sp,
                     color = textMain
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // DP Avatar Selector Preview
+                GlassContactAvatar(
+                    contactName = name.ifBlank { if (type == "SELLER") "Wholesaler" else "Customer" },
+                    avatarUri = avatarUri,
+                    size = 64.dp,
+                    themeColor = themeColor,
+                    showEditBadge = true,
+                    onClick = { showAvatarPicker = true }
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Tap photo to set custom DP or choose preset",
+                    fontSize = 11.sp,
+                    color = themeColor,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
 
                 OutlinedTextField(
                     value = name,
@@ -759,10 +1112,11 @@ fun AddContactDialog(
                         unfocusedBorderColor = borderFieldColor,
                         focusedContainerColor = inputBg,
                         unfocusedContainerColor = inputBg
-                    )
+                    ),
+                    shape = RoundedCornerShape(12.dp)
                 )
 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 OutlinedTextField(
                     value = phone,
@@ -780,25 +1134,31 @@ fun AddContactDialog(
                         unfocusedBorderColor = borderFieldColor,
                         focusedContainerColor = inputBg,
                         unfocusedContainerColor = inputBg
-                    )
+                    ),
+                    shape = RoundedCornerShape(12.dp)
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     TextButton(onClick = onDismiss) {
                         Text("Cancel", color = Color.Gray)
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
-                        onClick = { if (name.isNotBlank()) onAdd(name, phone) },
+                        onClick = {
+                            if (name.isNotBlank()) {
+                                onAdd(name, phone, avatarUri)
+                            }
+                        },
                         colors = ButtonDefaults.buttonColors(containerColor = themeColor),
-                        shape = RoundedCornerShape(8.dp)
+                        shape = RoundedCornerShape(10.dp)
                     ) {
-                        Text("Save Contact", color = Color.White)
+                        Text("Save Contact", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -824,6 +1184,21 @@ fun ContactDetailsScreen(
     var selectedTxType by remember { mutableStateOf("") } // "OWE" or "PAID"
     var filterType by remember { mutableStateOf("ALL") } // "ALL", "PURCHASES", "PAYMENTS"
     var showSendBillDialog by remember { mutableStateOf(false) }
+    var showAvatarPickerForDetail by remember { mutableStateOf(false) }
+
+    if (showAvatarPickerForDetail) {
+        AvatarPickerModal(
+            currentAvatarUri = contact.avatarUri,
+            contactName = contact.name,
+            contactType = contact.type,
+            themeColor = themeColor,
+            onDismiss = { showAvatarPickerForDetail = false },
+            onAvatarSelected = { newUri ->
+                viewModel.updateKhataContactAvatar(contact, newUri)
+                Toast.makeText(context, "Profile Picture updated!", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
 
     val filteredTransactions = remember(transactions, filterType) {
         val reversedTx = transactions.reversed()
@@ -880,7 +1255,20 @@ fun ContactDetailsScreen(
                     IconButton(onClick = onBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = themeColor)
                     }
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    // Glass Contact DP Avatar in Header
+                    GlassContactAvatar(
+                        contactName = contact.name,
+                        avatarUri = contact.avatarUri,
+                        size = 52.dp,
+                        themeColor = themeColor,
+                        showEditBadge = true,
+                        onClick = { showAvatarPickerForDetail = true }
+                    )
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = contact.name,
@@ -891,12 +1279,20 @@ fun ContactDetailsScreen(
                             overflow = TextOverflow.Ellipsis
                         )
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = if (contact.type == "SELLER") "Wholesaler Account" else "Customer Account",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = themeColor
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = if (contact.type == "SELLER") "Wholesaler Account" else "Customer Account",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = themeColor
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "• Tap photo to edit DP",
+                                fontSize = 10.sp,
+                                color = Color.Gray
+                            )
+                        }
                     }
                     // Delete contact action
                     IconButton(
@@ -2713,12 +3109,21 @@ fun KhataSettingsScreen(
                 }
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
-                    Text(
-                        text = "Khata Ledger Settings",
-                        color = textMain,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Build,
+                            contentDescription = null,
+                            tint = themeColor,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Khata Ledger Settings",
+                            color = textMain,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
                     Text(
                         text = "Configure store profile, currency, WhatsApp messaging & reports",
                         color = textSecondary,
@@ -3467,101 +3872,98 @@ fun GramPriceCalculator(theme: TaskCardTheme) {
         }
 
         // Hero Result Card
-        Card(
+        GlassCardContainer(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = themeColor.copy(alpha = if (isDark) 0.18f else 0.12f)),
             shape = RoundedCornerShape(16.dp),
-            border = androidx.compose.foundation.BorderStroke(1.5.dp, themeColor.copy(alpha = 0.4f))
+            themeColor = themeColor,
+            contentPadding = PaddingValues(16.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
+                Text(
+                    text = if (calcMode == 0) "TOTAL CALCULATED COST" else "YOU GET EXACTLY",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = themeColor,
+                    letterSpacing = 0.5.sp
+                )
+
+                // Copy Action
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(themeColor.copy(alpha = 0.15f))
+                        .clickable {
+                            val summaryStr = if (calcMode == 0) {
+                                "$targetWeight$targetWeightUnit @ ₹${"%.2f".format(calculatedCost ?: 0.0)} (Rate: $baseWeight$baseWeightUnit = ₹$basePrice)"
+                            } else {
+                                "₹$targetBudget buys ${if ((calculatedWeightInGrams ?: 0.0) >= 1000) "%.3f kg".format((calculatedWeightInGrams ?: 0.0)/1000) else "%.1f g".format(calculatedWeightInGrams ?: 0.0)} (Rate: $baseWeight$baseWeightUnit = ₹$basePrice)"
+                            }
+                            clipboardManager.setText(AnnotatedString(summaryStr))
+                            Toast.makeText(context, "Copied result to clipboard!", Toast.LENGTH_SHORT).show()
+                        }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = if (calcMode == 0) "TOTAL CALCULATED COST" else "YOU GET EXACTLY",
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = themeColor,
-                        letterSpacing = 0.5.sp
+                    Icon(
+                        imageVector = Icons.Default.ContentCopy,
+                        contentDescription = "Copy",
+                        tint = themeColor,
+                        modifier = Modifier.size(12.dp)
                     )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(text = "Copy", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = themeColor)
+                }
+            }
 
-                    // Copy Action
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(themeColor.copy(alpha = 0.15f))
-                            .clickable {
-                                val summaryStr = if (calcMode == 0) {
-                                    "$targetWeight$targetWeightUnit @ ₹${"%.2f".format(calculatedCost ?: 0.0)} (Rate: $baseWeight$baseWeightUnit = ₹$basePrice)"
-                                } else {
-                                    "₹$targetBudget buys ${if ((calculatedWeightInGrams ?: 0.0) >= 1000) "%.3f kg".format((calculatedWeightInGrams ?: 0.0)/1000) else "%.1f g".format(calculatedWeightInGrams ?: 0.0)} (Rate: $baseWeight$baseWeightUnit = ₹$basePrice)"
-                                }
-                                clipboardManager.setText(AnnotatedString(summaryStr))
-                                Toast.makeText(context, "Copied result to clipboard!", Toast.LENGTH_SHORT).show()
-                            }
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ContentCopy,
-                            contentDescription = "Copy",
-                            tint = themeColor,
-                            modifier = Modifier.size(12.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(text = "Copy", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = themeColor)
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Primary Output Display
+            if (calcMode == 0) {
+                Text(
+                    text = "₹${"%.2f".format(calculatedCost ?: 0.0)}",
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Black,
+                    color = themeColor
+                )
+                Text(
+                    text = if (calculatedCost != null && unitPricePerGram != null) {
+                        "✨ $targetWeight $targetWeightUnit costs ₹${"%.2f".format(calculatedCost)} (Rate: ₹${"%.2f".format(unitPricePerGram)} / g)"
+                    } else {
+                        "Enter valid rate and quantity below"
+                    },
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = textMain
+                )
+            } else {
+                val weightText = if (calculatedWeightInGrams != null) {
+                    if (calculatedWeightInGrams >= 1000.0) {
+                        "%.3f kg".format(calculatedWeightInGrams / 1000.0)
+                    } else {
+                        "%.1f g".format(calculatedWeightInGrams)
                     }
-                }
+                } else "0 g"
 
-                // Primary Output Display
-                if (calcMode == 0) {
-                    Text(
-                        text = "₹${"%.2f".format(calculatedCost ?: 0.0)}",
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.Black,
-                        color = themeColor
-                    )
-                    Text(
-                        text = if (calculatedCost != null && unitPricePerGram != null) {
-                            "✨ $targetWeight $targetWeightUnit costs ₹${"%.2f".format(calculatedCost)} (Rate: ₹${"%.2f".format(unitPricePerGram)} / g)"
-                        } else {
-                            "Enter valid rate and quantity below"
-                        },
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = textMain
-                    )
-                } else {
-                    val weightText = if (calculatedWeightInGrams != null) {
-                        if (calculatedWeightInGrams >= 1000.0) {
-                            "%.3f kg".format(calculatedWeightInGrams / 1000.0)
-                        } else {
-                            "%.1f g".format(calculatedWeightInGrams)
-                        }
-                    } else "0 g"
-
-                    Text(
-                        text = weightText,
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.Black,
-                        color = themeColor
-                    )
-                    Text(
-                        text = if (calculatedWeightInGrams != null && unitPricePerGram != null) {
-                            "✨ For ₹$targetBudget, you get $weightText (Rate: ₹${"%.2f".format(unitPricePerGram)} / g)"
-                        } else {
-                            "Enter valid rate and budget below"
-                        },
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = textMain
-                    )
-                }
+                Text(
+                    text = weightText,
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Black,
+                    color = themeColor
+                )
+                Text(
+                    text = if (calculatedWeightInGrams != null && unitPricePerGram != null) {
+                        "✨ For ₹$targetBudget, you get $weightText (Rate: ₹${"%.2f".format(unitPricePerGram)} / g)"
+                    } else {
+                        "Enter valid rate and budget below"
+                    },
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = textMain
+                )
             }
         }
 
@@ -3615,129 +4017,122 @@ fun GramPriceCalculator(theme: TaskCardTheme) {
         }
 
         // Card 1: Known Base Rate Input
-        Card(
+        GlassCardContainer(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = cardBg),
             shape = RoundedCornerShape(14.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, borderColor)
+            themeColor = themeColor,
+            contentPadding = PaddingValues(14.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(20.dp)
+                        .clip(CircleShape)
+                        .background(themeColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("1", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Known Base Rate",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp,
+                    color = textMain
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                // Base Weight
+                OutlinedTextField(
+                    value = baseWeight,
+                    onValueChange = { baseWeight = it },
+                    label = { Text("Base Weight") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = textMain,
+                        unfocusedTextColor = textMain,
+                        focusedContainerColor = inputBg,
+                        unfocusedContainerColor = inputBg,
+                        focusedBorderColor = themeColor,
+                        unfocusedBorderColor = borderColor
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1.2f),
+                    singleLine = true
+                )
+
+                // Unit Toggle (g / kg)
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(inputBg)
+                        .border(1.dp, borderColor, RoundedCornerShape(10.dp))
+                        .padding(2.dp)
+                ) {
                     Box(
                         modifier = Modifier
-                            .size(20.dp)
-                            .clip(CircleShape)
-                            .background(themeColor),
-                        contentAlignment = Alignment.Center
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (baseWeightUnit == "g") themeColor else Color.Transparent)
+                            .clickable { baseWeightUnit = "g" }
+                            .padding(horizontal = 10.dp, vertical = 12.dp)
                     ) {
-                        Text("1", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text("g", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (baseWeightUnit == "g") Color.White else textSecondary)
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Known Base Rate",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp,
-                        color = textMain
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Base Weight
-                    OutlinedTextField(
-                        value = baseWeight,
-                        onValueChange = { baseWeight = it },
-                        label = { Text("Base Weight") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = textMain,
-                            unfocusedTextColor = textMain,
-                            focusedContainerColor = inputBg,
-                            unfocusedContainerColor = inputBg,
-                            focusedBorderColor = themeColor,
-                            unfocusedBorderColor = borderColor
-                        ),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1.2f),
-                        singleLine = true
-                    )
-
-                    // Unit Toggle (g / kg)
-                    Row(
+                    Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(inputBg)
-                            .border(1.dp, borderColor, RoundedCornerShape(10.dp))
-                            .padding(2.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (baseWeightUnit == "kg") themeColor else Color.Transparent)
+                            .clickable { baseWeightUnit = "kg" }
+                            .padding(horizontal = 10.dp, vertical = 12.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (baseWeightUnit == "g") themeColor else Color.Transparent)
-                                .clickable { baseWeightUnit = "g" }
-                                .padding(horizontal = 10.dp, vertical = 12.dp)
-                        ) {
-                            Text("g", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (baseWeightUnit == "g") Color.White else textSecondary)
-                        }
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (baseWeightUnit == "kg") themeColor else Color.Transparent)
-                                .clickable { baseWeightUnit = "kg" }
-                                .padding(horizontal = 10.dp, vertical = 12.dp)
-                        ) {
-                            Text("kg", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (baseWeightUnit == "kg") Color.White else textSecondary)
-                        }
+                        Text("kg", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (baseWeightUnit == "kg") Color.White else textSecondary)
                     }
-
-                    Text(
-                        text = "=",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = textSecondary
-                    )
-
-                    // Base Price
-                    OutlinedTextField(
-                        value = basePrice,
-                        onValueChange = { basePrice = it },
-                        label = { Text("Price (₹)") },
-                        prefix = { Text("₹", fontWeight = FontWeight.Bold, color = themeColor) },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = textMain,
-                            unfocusedTextColor = textMain,
-                            focusedContainerColor = inputBg,
-                            unfocusedContainerColor = inputBg,
-                            focusedBorderColor = themeColor,
-                            unfocusedBorderColor = borderColor
-                        ),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.weight(1.2f),
-                        singleLine = true
-                    )
                 }
+
+                Text(
+                    text = "=",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = textSecondary
+                )
+
+                // Base Price
+                OutlinedTextField(
+                    value = basePrice,
+                    onValueChange = { basePrice = it },
+                    label = { Text("Price (₹)") },
+                    prefix = { Text("₹", fontWeight = FontWeight.Bold, color = themeColor) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = textMain,
+                        unfocusedTextColor = textMain,
+                        focusedContainerColor = inputBg,
+                        unfocusedContainerColor = inputBg,
+                        focusedBorderColor = themeColor,
+                        unfocusedBorderColor = borderColor
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1.2f),
+                    singleLine = true
+                )
             }
         }
 
         // Card 2: Target Quantity / Budget Input
-        Card(
+        GlassCardContainer(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = cardBg),
             shape = RoundedCornerShape(14.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, borderColor)
+            themeColor = themeColor,
+            contentPadding = PaddingValues(14.dp)
         ) {
-            Column(
-                modifier = Modifier.padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
                             .size(20.dp)
@@ -3955,4 +4350,3 @@ fun GramPriceCalculator(theme: TaskCardTheme) {
             }
         }
     }
-}
